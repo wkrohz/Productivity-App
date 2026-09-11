@@ -1,17 +1,23 @@
-# Python
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 env/
-build/
-*.manifest
-*.spec
+venv/
 
-# User config & stats
+# Build artifacts (PyInstaller)
+build/
+dist/
+*.manifest
+
+# User config & stats (personal data)
 productivity_config.json
 
-# VS Code & IDEs
+# IDE files
 .vscode/
 .idea/
+
+# PowerShell scripts (local only)
+*.ps1

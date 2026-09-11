@@ -11,7 +11,7 @@ def register_in_windows_search():
     """Automatically registers ProductivityHub shortcut in Windows Start Menu so Windows Search finds it."""
     try:
         start_menu_dir = os.path.join(os.environ.get('APPDATA', ''), r'Microsoft\Windows\Start Menu\Programs')
-        shortcut_path = os.path.join(start_menu_dir, "ProductivityHub.lnk")
+        shortcut_path = os.path.join(start_menu_dir, "انتاجيتي.lnk")
 
         if getattr(sys, 'frozen', False):
             target_exe = sys.executable
@@ -23,7 +23,7 @@ def register_in_windows_search():
         shortcut.TargetPath = target_exe
         shortcut.WorkingDirectory = os.path.dirname(target_exe)
         shortcut.IconLocation = target_exe
-        shortcut.Description = "مركز الإنتاجية الذكي لتنظيم الوقت وحظر التطبيقات"
+        shortcut.Description = "انتاجيتي - مركز الإنتاجية الذكي لتنظيم الوقت وحظر التطبيقات"
         shortcut.save()
     except Exception as e:
         print("Shortcut creation notice:", e)
