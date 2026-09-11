@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+*.manifest
+*.spec
+
+# User config & stats
+productivity_config.json
+
+# VS Code & IDEs
+.vscode/
+.idea/
