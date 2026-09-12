@@ -1,6 +1,7 @@
 import sys
 import os
 import datetime
+import random
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QListWidget, QListWidgetItem, QLineEdit, QComboBox, QCheckBox,
@@ -14,7 +15,20 @@ from config_manager import ConfigManager
 from audio_manager import AudioManager
 from app_blocker import AppBlocker
 from asset_helper import get_asset_path, get_tinted_pixmap
-from overlays import WaterOverlayWindow, PushupsOverlayWindow, StartScheduleOverlayWindow
+from overlays import WaterOverlayWindow, PushupsOverlayWindow, StartScheduleOverlayWindow, ExerciseOverlayWindow, EXERCISES_LIST
+
+MOTIVATIONAL_STUDY_QUOTES = [
+    "💡 استمر! كل دقيقة تدرسها الآن تقربك من هدفك العظيم.",
+    "🔥 العزيمة هي القوة التي تحول الأحلام إلى واقع. واصل التركيز!",
+    "🎯 النجاح هو مجمل خطوات صغيرة تتكرر يومياً. أنت تصنع مستقبلك الآن!",
+    "⭐ تذكر لماذا بدأت! التركيز اليوم هو سر التميز غداً.",
+    "🧠 عقلك يتعلم وينمو مع كل معلومة تقرأها. أحسنت الصنع!",
+    "🚀 لا تتوقف عندما تتعب، توقف عندما تنتهي! أنت أقوى من المشتتات.",
+    "💎 الإنتاجية ليست حظاً، بل هي التزام وشغف. واصل بطل!",
+    "🏆 الإنجاز الحقيقي يبدأ بالانضباط الذاتي. أنت في الطريق الصحيح.",
+    "⚡ التركيز العميق هو مهارة الناجحين. ابقَ متيقظاً ومتحفزاً!",
+    "🌟 كل دقيقة تركيز هي استثمار في مستقبلك الباهر!"
+]
 
 def format_12h(time_str):
     """Converts '16:00' to '04:00 مساءً'."""
@@ -31,24 +45,24 @@ def format_12h(time_str):
         return time_str
 
 RANKS = [
-    (0,     "مبتدئ أول 🥉", "#94A3B8", "بداية الرحلة والالتزام 🌱"),
-    (50,    "مبتدئ ثاني 🥉", "#94A3B8", "خطوات ثابتة نحو النجاح 🚶‍♂️"),
-    (100,   "مبتدئ ثالث 🥉", "#94A3B8", "تأسيس عادة التركيز اليومية 🎯"),
-    (150,   "متقدم أول 🥈", "#38BDF8", "انطلاقة قوية وزيادة الإنتاجية 🚀"),
-    (250,   "متقدم ثاني 🥈", "#38BDF8", "تجاوز المشتتات بثقة 💪"),
-    (350,   "متقدم ثالث 🥈", "#38BDF8", "إتقان إدارة الوقت والجهد ⏱️"),
-    (500,   "مجتهد أول 🥇", "#F59E0B", "التزام عالي وأثر ملموس 🌟"),
-    (700,   "مجتهد ثاني 🥇", "#F59E0B", "شغف متواصل بدون توقف 🔥"),
-    (900,   "مجتهد ثالث 🥇", "#F59E0B", "نموذج يُحتذى به في الانضباط 🏆"),
-    (1200,  "متفوق أول 💠", "#A855F7", "تركيز عميق وإنجازات متتالية 💎"),
-    (1600,  "متفوق ثاني 💠", "#A855F7", "قوة إرادة وصمود في وجه التشتت 🛡️"),
-    (2000,  "متفوق ثالث 💠", "#A855F7", "أداء استثنائي يتجاوز التوقعات ⚡"),
-    (2500,  "نخبة أول 👑", "#EC4899", "المربع الذهبي للإنتاجية العالية 👑"),
-    (3200,  "نخبة ثاني 👑", "#EC4899", "إتقان شامل واستمرارية بلا استسلام 🛡️"),
-    (4000,  "نخبة ثالث 👑", "#EC4899", "من القلائل الذين وصلوا لهذه المهارة 🔥"),
-    (5000,  "قدوة عظيمة 🌟", "#EAB308", "مكانة رفيعة وإنجاز يومي مبهر 🌟"),
-    (7000,  "قدوة تاريخية 🌌", "#3B82F6", "رمز حقيقي للتركيز والمثابرة 🌌"),
-    (10000, "قدوة اسطورية ⚡", "#EF4444", "قمة المجد! أسطورة خالدة في الإنتاجية 👑⚡"),
+    (0,       "مبتدئ أول 🥉",      "#94A3B8", "بداية الرحلة والالتزام 🌱"),
+    (300,     "مبتدئ ثاني 🥉",     "#94A3B8", "خطوات ثابتة نحو النجاح 🚶‍♂️"),
+    (800,     "مبتدئ ثالث 🥉",     "#94A3B8", "تأسيس عادة التركيز اليومية 🎯"),
+    (1500,    "متقدم أول 🥈",      "#38BDF8", "انطلاقة قوية وزيادة الإنتاجية 🚀"),
+    (3000,    "متقدم ثاني 🥈",     "#38BDF8", "تجاوز المشتتات بثقة 💪"),
+    (5000,    "متقدم ثالث 🥈",     "#38BDF8", "إتقان إدارة الوقت والجهد ⏱️"),
+    (8000,    "مجتهد أول 🥇",      "#F59E0B", "التزام عالي وأثر ملموس 🌟"),
+    (12000,   "مجتهد ثاني 🥇",     "#F59E0B", "شغف متواصل بدون توقف 🔥"),
+    (17000,   "مجتهد ثالث 🥇",     "#F59E0B", "نموذج يُحتذى به في الانضباط 🏆"),
+    (23000,   "متفوق أول 💠",      "#A855F7", "تركيز عميق وإنجازات متتالية 💎"),
+    (30000,   "متفوق ثاني 💠",     "#A855F7", "قوة إرادة وصمود في وجه التشتت 🛡️"),
+    (38000,   "متفوق ثالث 💠",     "#A855F7", "أداء استثنائي يتجاوز التوقعات ⚡"),
+    (48000,   "نخبة أول 👑",       "#EC4899", "المربع الذهبي للإنتاجية العالية 👑"),
+    (60000,   "نخبة ثاني 👑",       "#EC4899", "إتقان شامل واستمرارية بلا استسلام 🛡️"),
+    (72000,   "نخبة ثالث 👑",       "#EC4899", "من القلائل الذين وصلوا لهذه المهارة 🔥"),
+    (82000,   "قدوة عظيمة 🌟",     "#EAB308", "مكانة رفيعة وإنجاز يومي مبهر 🌟"),
+    (90000,   "قدوة تاريخية 🌌",   "#3B82F6", "رمز حقيقي للتركيز والمثابرة 🌌"),
+    (100000,  "قدوة اسطورية ⚡",   "#EF4444", "قمة المجد! أسطورة خالدة في الإنتاجية 👑⚡"),
 ]
 
 ALL_BADGES = [
@@ -86,11 +100,11 @@ ALL_BADGES = [
     {"id": "b_tasks_6", "cat": "tasks", "title": "👑 ملك الإنجاز الأبدي",   "desc": "إكمال 200 مهمة إجمالاً",           "pts": 800, "tasks_total": 200},
 
     # ⚡ قسم النقاط والرانك (5 أوسمة خاصة)
-    {"id": "b_score_1",  "cat": "score", "title": "🌱 أول خطوة",            "desc": "جمع 50 نقطة",                       "pts": 0,   "score_min": 50},
-    {"id": "b_score_2",  "cat": "score", "title": "🔥 ثلاثمئة نقطة",        "desc": "جمع 300 نقطة إجمالاً",             "pts": 0,   "score_min": 300},
-    {"id": "b_score_3",  "cat": "score", "title": "💎 نادي الألف",           "desc": "جمع 1000 نقطة إجمالاً",            "pts": 0,   "score_min": 1000},
-    {"id": "b_score_4",  "cat": "score", "title": "👑 سيد النقاط",          "desc": "جمع 5000 نقطة إجمالاً",            "pts": 0,   "score_min": 5000},
-    {"id": "b_score_5",  "cat": "score", "title": "🌌 اسطورة الأوسمة",     "desc": "جمع 10000 نقطة إجمالاً",           "pts": 0,   "score_min": 10000},
+    {"id": "b_score_1",  "cat": "score", "title": "🌱 أول خطوة",            "desc": "جمع 300 نقطة",                      "pts": 0,   "score_min": 300},
+    {"id": "b_score_2",  "cat": "score", "title": "🔥 ألفان نقطة",          "desc": "جمع 2000 نقطة إجمالاً",            "pts": 0,   "score_min": 2000},
+    {"id": "b_score_3",  "cat": "score", "title": "💎 نادي العشرة آلاف",    "desc": "جمع 10000 نقطة إجمالاً",           "pts": 0,   "score_min": 10000},
+    {"id": "b_score_4",  "cat": "score", "title": "👑 سيد النقاط",          "desc": "جمع 50000 نقطة إجمالاً",           "pts": 0,   "score_min": 50000},
+    {"id": "b_score_5",  "cat": "score", "title": "🌌 اسطورة الأوسمة",     "desc": "جمع 100000 نقطة إجمالاً (القمة)",  "pts": 0,   "score_min": 100000},
 ]
 
 class MainWindow(QMainWindow):
@@ -102,6 +116,7 @@ class MainWindow(QMainWindow):
         self.audio_mgr = AudioManager(enabled=self.config.get("sound_enabled", True))
         self.app_blocker = AppBlocker(audio_mgr=self.audio_mgr)
         self.app_blocker.set_blocked_apps(self.config.get("blocked_apps", []))
+        self.app_blocker.set_blocked_websites(self.config.get("blocked_websites", []))
 
         # Check daily stats reset
         today_str = datetime.date.today().isoformat()
@@ -116,6 +131,7 @@ class MainWindow(QMainWindow):
 
         self.water_timer_counter = 0
         self.pushups_timer_counter = 0
+        self.study_motivate_counter = 0
         self.last_triggered_schedule_key = ""
 
         # ✅ منع تكرار شاشات التذكير
@@ -360,7 +376,8 @@ class MainWindow(QMainWindow):
         self.btn_nav_badge = self.create_nav_button(" الإحصائيات والأوسمة", "bullseye-arrowlogo.png", 2)
         self.btn_nav_sched = self.create_nav_button(" جدول التعلم", "calendarlogo.png", 3)
         self.btn_nav_block = self.create_nav_button(" التطبيقات الممنوعة", "forbiddenapps.png", 4)
-        self.btn_nav_sets = self.create_nav_button(" الإعدادات والاختبار", "settingslogo.png", 5)
+        self.btn_nav_web_block = self.create_nav_button(" المواقع المحظورة", "forbiddenapps.png", 5)
+        self.btn_nav_sets = self.create_nav_button(" الإعدادات والاختبار", "settingslogo.png", 6)
 
         self.btn_nav_dash.setProperty("active", "true")
 
@@ -369,10 +386,11 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(self.btn_nav_badge)
         sidebar_layout.addWidget(self.btn_nav_sched)
         sidebar_layout.addWidget(self.btn_nav_block)
+        sidebar_layout.addWidget(self.btn_nav_web_block)
         sidebar_layout.addWidget(self.btn_nav_sets)
         sidebar_layout.addStretch()
 
-        ver_lbl = QLabel("الإصدار الأسطوري 5.0 ⚡")
+        ver_lbl = QLabel("الإصدار الأسطوري 6.0 ⚡")
         ver_lbl.setStyleSheet("color: #64748B; font-size: 13px;")
         ver_lbl.setAlignment(Qt.AlignCenter)
         sidebar_layout.addWidget(ver_lbl)
@@ -384,6 +402,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.create_analytics_page())
         self.pages.addWidget(self.create_schedules_page())
         self.pages.addWidget(self.create_blocked_apps_page())
+        self.pages.addWidget(self.create_blocked_websites_page())
         self.pages.addWidget(self.create_settings_page())
 
         main_layout.addWidget(sidebar)
@@ -404,7 +423,7 @@ class MainWindow(QMainWindow):
 
     def switch_page(self, index):
         self.pages.setCurrentIndex(index)
-        nav_btns = [self.btn_nav_dash, self.btn_nav_tasks, self.btn_nav_badge, self.btn_nav_sched, self.btn_nav_block, self.btn_nav_sets]
+        nav_btns = [self.btn_nav_dash, self.btn_nav_tasks, self.btn_nav_badge, self.btn_nav_sched, self.btn_nav_block, self.btn_nav_web_block, self.btn_nav_sets]
         for i, btn in enumerate(nav_btns):
             btn.setProperty("active", "true" if i == index else "false")
             btn.setStyle(btn.style())
@@ -1145,7 +1164,80 @@ class MainWindow(QMainWindow):
         layout.addLayout(ctrl_box)
         return page
 
-    # Page 4: Settings & Instant Testing
+    # Page 6: Blocked Websites Page
+    def create_blocked_websites_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(32, 32, 32, 32)
+        layout.setSpacing(20)
+
+        title = QLabel("🌐 المواقع المحظورة أثناء التعلم")
+        title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        layout.addWidget(title)
+
+        desc = QLabel("أثناء تفعيل وقت التعلم والتركيز، سيتم حظر الوصول لهذه المواقع لمنع التشتت زيادة الإنتاجية.")
+        desc.setStyleSheet("color: #94A3B8; font-size: 15px;")
+        layout.addWidget(desc)
+
+        # Quick Preset Buttons Row
+        preset_card = QFrame()
+        preset_card.setObjectName("Card")
+        preset_layout = QVBoxLayout(preset_card)
+        preset_layout.setSpacing(10)
+
+        preset_lbl = QLabel("⚡ أزرار حظر سريعة بنقرة واحدة:")
+        preset_lbl.setStyleSheet("font-size: 15px; font-weight: bold; color: #38BDF8;")
+        preset_layout.addWidget(preset_lbl)
+
+        preset_row = QHBoxLayout()
+        preset_row.setSpacing(10)
+
+        presets = [
+            ("🎥 يوتيوب", "youtube.com"),
+            ("📘 فيسبوك", "facebook.com"),
+            ("🐦 تويتر/X", "twitter.com"),
+            ("🎵 تيك توك", "tiktok.com"),
+            ("📷 انستغرام", "instagram.com"),
+            ("🤖 ريديت", "reddit.com"),
+            ("🎬 نتفليكس", "netflix.com")
+        ]
+
+        for p_name, domain in presets:
+            btn = QPushButton(p_name)
+            btn.setObjectName("PresetBtn")
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.clicked.connect(lambda ch, d=domain: self.add_preset_website(d))
+            preset_row.addWidget(btn)
+
+        preset_layout.addLayout(preset_row)
+        layout.addWidget(preset_card)
+
+        # Search Box for Blocked Websites
+        self.txt_search_blocked_websites = QLineEdit()
+        self.txt_search_blocked_websites.setPlaceholderText("🔍 ابحث في قائمة المواقع المحظورة...")
+        self.txt_search_blocked_websites.textChanged.connect(self.reload_blocked_websites_list)
+        layout.addWidget(self.txt_search_blocked_websites)
+
+        self.list_blocked_websites = QListWidget()
+        self.reload_blocked_websites_list()
+        layout.addWidget(self.list_blocked_websites)
+
+        ctrl_box = QHBoxLayout()
+        self.txt_website_url = QLineEdit()
+        self.txt_website_url.setPlaceholderText("رابط الموقع (مثال: youtube.com أو twitch.tv)")
+
+        btn_add_web = QPushButton("➕ إضافة موقع")
+        btn_add_web.setObjectName("PrimaryBtn")
+        btn_add_web.setCursor(Qt.PointingHandCursor)
+        btn_add_web.clicked.connect(self.add_blocked_website)
+
+        ctrl_box.addWidget(self.txt_website_url, 1)
+        ctrl_box.addWidget(btn_add_web)
+
+        layout.addLayout(ctrl_box)
+        return page
+
+    # Page 7: Settings & Instant Testing
     def create_settings_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -1203,7 +1295,7 @@ class MainWindow(QMainWindow):
 
         # Pushups Interval
         pushups_box = QVBoxLayout()
-        pushups_box.addWidget(QLabel("🏋️ تذكير تمارين الضغط:"))
+        pushups_box.addWidget(QLabel("🏋️ تذكير تمارين الضغط والرياضة:"))
         self.cmb_pushups_interval = QComboBox()
         for m in [30, 45, 60, 90, 120, 180]:
             self.cmb_pushups_interval.addItem(f"كل {m} دقيقة", m)
@@ -1230,7 +1322,7 @@ class MainWindow(QMainWindow):
         test_title = QLabel("🎯 تجربة شاشات التنبيه فوراً")
         test_title.setObjectName("CardTitle")
 
-        test_desc = QLabel("يمكنك اختبار شكل شاشة شرب الماء وشاشة التمارين والصوت المتكرر فوراً.")
+        test_desc = QLabel("يمكنك اختبار شكل شاشة شرب الماء وشاشة التمارين المتنوعة فوراً.")
         test_desc.setStyleSheet("color: #94A3B8; font-size: 15px;")
 
         btn_box = QHBoxLayout()
@@ -1241,7 +1333,7 @@ class MainWindow(QMainWindow):
         btn_test_water.setCursor(Qt.PointingHandCursor)
         btn_test_water.clicked.connect(self.test_water_overlay)
 
-        btn_test_pushups = QPushButton("🏋️ تجربة شاشة البوش اب الان")
+        btn_test_pushups = QPushButton("🏋️ تجربة تمرين رياضه الان (متنوع)")
         btn_test_pushups.setObjectName("PrimaryBtn")
         btn_test_pushups.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #EA580C, stop:1 #C2410C); border: 1px solid #F97316;")
         btn_test_pushups.setCursor(Qt.PointingHandCursor)
@@ -1255,6 +1347,30 @@ class MainWindow(QMainWindow):
         test_layout.addLayout(btn_box)
 
         layout.addWidget(test_card)
+
+        # Reset Progress Section
+        reset_card = QFrame()
+        reset_card.setObjectName("Card")
+        reset_card.setStyleSheet("background-color: #111827; border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 20px; padding: 22px;")
+        reset_layout = QVBoxLayout(reset_card)
+        reset_layout.setSpacing(12)
+
+        reset_title = QLabel("🔄 إعادة تعيين النقاط والتقدم")
+        reset_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #EF4444;")
+        
+        reset_desc = QLabel("تصفير كافة النقاط، الأوسمة، وإحصائيات التقدم والبدء من جديد من رانك 'مبتدئ أول'.")
+        reset_desc.setStyleSheet("color: #94A3B8; font-size: 14px;")
+
+        btn_reset_progress = QPushButton("🔄 إعادة تعيين التقدم والنقاط من البداية")
+        btn_reset_progress.setObjectName("FinishBtn")
+        btn_reset_progress.setCursor(Qt.PointingHandCursor)
+        btn_reset_progress.clicked.connect(self.reset_user_progress)
+
+        reset_layout.addWidget(reset_title)
+        reset_layout.addWidget(reset_desc)
+        reset_layout.addWidget(btn_reset_progress)
+
+        layout.addWidget(reset_card)
         layout.addStretch()
         return page
 
@@ -1453,6 +1569,112 @@ class MainWindow(QMainWindow):
             self.app_blocker.set_blocked_apps(self.config["blocked_apps"])
             self.reload_blocked_apps_list()
 
+    # ─── Blocked Websites Actions ────────────────────────────────────────────
+    def reload_blocked_websites_list(self):
+        if not hasattr(self, 'list_blocked_websites'):
+            return
+        self.list_blocked_websites.clear()
+
+        query = ""
+        if hasattr(self, "txt_search_blocked_websites"):
+            query = self.txt_search_blocked_websites.text().strip().lower()
+
+        all_sites = self.config.get("blocked_websites", [])
+        filtered = [s for s in all_sites if query in s.lower()]
+
+        if not filtered:
+            item = QListWidgetItem(self.list_blocked_websites)
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            msg = f"🔍 لا توجد نتائج لـ '{query}'" if query else "🌐 لا توجد مواقع محظورة في القائمة حالياً"
+            lbl = QLabel(msg)
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet("font-size: 15px; color: #94A3B8; padding: 15px;")
+            row_layout.addWidget(lbl)
+            row_widget.setLayout(row_layout)
+            item.setSizeHint(QSize(0, 60))
+            self.list_blocked_websites.addItem(item)
+            self.list_blocked_websites.setItemWidget(item, row_widget)
+            return
+
+        trash_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(22, 22))
+
+        for site in filtered:
+            orig_idx = all_sites.index(site)
+            list_item = QListWidgetItem(self.list_blocked_websites)
+
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(15, 12, 15, 12)
+            row_layout.setSpacing(15)
+
+            lbl_ic = QLabel("🌐")
+            lbl_ic.setStyleSheet("font-size: 22px;")
+            row_layout.addWidget(lbl_ic)
+
+            lbl = QLabel(site)
+            lbl.setStyleSheet("font-size: 17px; font-weight: bold; color: #F8FAFC;")
+            lbl.setWordWrap(True)
+            lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+            lbl_badge = QLabel("محظور أثناء التعلم 🛑")
+            lbl_badge.setStyleSheet("background-color: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.4); font-size: 12px; font-weight: bold; border-radius: 8px; padding: 5px 10px;")
+
+            btn_del = QPushButton()
+            btn_del.setObjectName("IconTrashBtn")
+            btn_del.setCursor(Qt.PointingHandCursor)
+            btn_del.setFixedSize(40, 40)
+            if not trash_pix.isNull():
+                btn_del.setIcon(QIcon(trash_pix))
+                btn_del.setIconSize(QSize(22, 22))
+            btn_del.setToolTip("حذف الموقع المحظور")
+            btn_del.clicked.connect(lambda ch, i=orig_idx: self.delete_blocked_website(i))
+
+            row_layout.addWidget(lbl, 1)
+            row_layout.addWidget(lbl_badge, 0, Qt.AlignRight | Qt.AlignVCenter)
+            row_layout.addWidget(btn_del, 0, Qt.AlignRight | Qt.AlignVCenter)
+
+            row_widget.setLayout(row_layout)
+            hint = row_widget.sizeHint()
+            hint.setHeight(max(hint.height(), 60))
+            list_item.setSizeHint(hint)
+
+            self.list_blocked_websites.addItem(list_item)
+            self.list_blocked_websites.setItemWidget(list_item, row_widget)
+
+    def add_blocked_website(self):
+        raw = self.txt_website_url.text().strip().lower()
+        if not raw:
+            return
+        if raw.startswith("http://"): raw = raw[7:]
+        if raw.startswith("https://"): raw = raw[8:]
+        if raw.startswith("www."): raw = raw[4:]
+        site = raw.split('/')[0]
+        if site and site not in self.config.get("blocked_websites", []):
+            if "blocked_websites" not in self.config:
+                self.config["blocked_websites"] = []
+            self.config["blocked_websites"].append(site)
+            self.cfg_mgr.save_config()
+            self.app_blocker.set_blocked_websites(self.config["blocked_websites"])
+            self.reload_blocked_websites_list()
+        self.txt_website_url.clear()
+
+    def add_preset_website(self, domain):
+        if "blocked_websites" not in self.config:
+            self.config["blocked_websites"] = []
+        if domain not in self.config["blocked_websites"]:
+            self.config["blocked_websites"].append(domain)
+            self.cfg_mgr.save_config()
+            self.app_blocker.set_blocked_websites(self.config["blocked_websites"])
+            self.reload_blocked_websites_list()
+
+    def delete_blocked_website(self, index):
+        if "blocked_websites" in self.config and 0 <= index < len(self.config["blocked_websites"]):
+            self.config["blocked_websites"].pop(index)
+            self.cfg_mgr.save_config()
+            self.app_blocker.set_blocked_websites(self.config["blocked_websites"])
+            self.reload_blocked_websites_list()
+
     def open_running_apps_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("اختر تطبيقاً حياً لحظره")
@@ -1545,7 +1767,10 @@ class MainWindow(QMainWindow):
 
     def toggle_task(self, index, is_checked):
         if 0 <= index < len(self.config.get("daily_tasks", [])):
+            was_completed = self.config["daily_tasks"][index].get("completed", False)
             self.config["daily_tasks"][index]["completed"] = is_checked
+            if is_checked and not was_completed:
+                self.award_points(15, "إكمال مهمة يومية")
             self.cfg_mgr.save_config()
             self.reload_tasks_list()
 
@@ -1743,14 +1968,49 @@ class MainWindow(QMainWindow):
         )
 
     def test_pushups_overlay(self):
-        """تفتح شاشة البوش-أب — لكن فقط إذا ما كانت مفتوحة بالفعل."""
+        """تفتح شاشة التمارين بالتدوير بين مختلف التمارين الرياضية."""
         if self._pushups_overlay_open:
             return
         self._pushups_overlay_open = True
-        self.pushups_overlay = PushupsOverlayWindow(
+        
+        ex_idx = self.config.get("exercise_index", 0)
+        ex_info = EXERCISES_LIST[ex_idx % len(EXERCISES_LIST)]
+        self.config["exercise_index"] = (ex_idx + 1) % len(EXERCISES_LIST)
+        self.cfg_mgr.save_config()
+
+        self.pushups_overlay = ExerciseOverlayWindow(
+            exercise_info=ex_info,
             audio_mgr=self.audio_mgr,
             on_finish_callback=self.handle_overlay_finish
         )
+
+    def reset_user_progress(self):
+        reply = QMessageBox.warning(
+            self,
+            "إعادة تعيين التقدم والنقاط",
+            "هل أنت تأكد من إعادة تعيين كافة النقاط، الأوسمة، وإحصائيات التقدم والبدء من جديد؟\n\nلا يمكن التراجع عن هذا الإجراء بعد تنفيذه.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            self.config["user_score"] = 0
+            self.config["unlocked_badges"] = []
+            today_str = datetime.date.today().isoformat()
+            self.config["daily_stats"] = {
+                "date": today_str,
+                "water_count": 0,
+                "pushups_count": 0,
+                "learning_minutes": 0
+            }
+            self.config["weekly_history"] = {}
+            self.config["total_water_count"] = 0
+            self.config["total_pushups_count"] = 0
+            self.config["total_learn_minutes"] = 0
+            self.config["total_tasks_done"] = 0
+            self.cfg_mgr.save_config()
+            self.reload_analytics_ui()
+            self.reload_tasks_list()
+            QMessageBox.information(self, "تم الإعادة", "تم إعادة تعيين النقاط والتقدم إلى البداية بنجاح! 🚀")
 
     def change_water_interval(self, index):
         val = self.cmb_water_interval.itemData(index)
@@ -2145,6 +2405,14 @@ class MainWindow(QMainWindow):
             self.config["daily_stats"]["learning_minutes"] += 1
             self.lbl_stat_time.setText(f"{self.config['daily_stats']['learning_minutes']} دقيقة")
             self.award_points(1, "دقيقة تعلم")
+
+            # 💡 Motivational notifications during active study session
+            self.study_motivate_counter = getattr(self, "study_motivate_counter", 0) + 1
+            if self.study_motivate_counter >= 10:
+                self.study_motivate_counter = 0
+                quote = random.choice(MOTIVATIONAL_STUDY_QUOTES)
+                if hasattr(self, "tray_icon") and self.tray_icon:
+                    self.tray_icon.showMessage("💪 تحفيز الدراسة والتركيز 🚀", quote, QSystemTrayIcon.Information, 7000)
 
             today_str = datetime.date.today().isoformat()
             if "weekly_history" not in self.config:

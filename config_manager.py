@@ -7,7 +7,9 @@ CONFIG_FILE = "productivity_config.json"
 
 DEFAULT_CONFIG = {
     "startup_enabled": False,
-    "blocked_apps": ["discord.exe", "steam.exe", "spotify.exe", "chrome.exe"],
+    "blocked_apps": ["discord.exe", "steam.exe", "spotify.exe"],
+    "blocked_websites": ["facebook.com", "twitter.com", "x.com", "instagram.com", "tiktok.com", "youtube.com"],
+    "exercise_index": 0,
     "learning_schedules": [
         {"name": "جلسة التعلم المسائية", "start": "16:00", "end": "18:00", "active": True},
         {"name": "جلسة التعلم الليلية", "start": "20:00", "end": "22:00", "active": True}

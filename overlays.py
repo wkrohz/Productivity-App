@@ -250,12 +250,73 @@ class WaterOverlayWindow(QWidget):
             super().keyPressEvent(event)
 
 
-class PushupsOverlayWindow(QWidget):
-    """Completely redesigned Push-ups full-screen overlay with tinted logo, simple single action button, and high UX."""
-    def __init__(self, audio_mgr=None, on_finish_callback=None):
+EXERCISES_LIST = [
+    {
+        "id": "pushups",
+        "name": "تمارين الضغط",
+        "title": "تحدي اللياقة: 5 تمارين ضغط 🏋️",
+        "subtitle": "مرت ساعتان كاملتان!\nقم الآن وأنجز 5 ضغطات لتنشيط الدورة الدموية والجزء العلوي من جسمك.",
+        "btn_text": "أنجزت 5 ضغطات! 🏋️",
+        "color": "#FB923C",
+        "bg_grad": "stop:0 #1C0A00, stop:0.5 #451A03, stop:1 #7C2D12"
+    },
+    {
+        "id": "squats",
+        "name": "تمارين السكوات (القرفصاء)",
+        "title": "تحدي اللياقة: 8 تمارين سكوات 🦵",
+        "subtitle": "حانت لحظة الحركة!\nقف وأنجز 8 تكرارات قرفصاء (Squats) لتجديد نشاط الساقين والجسم.",
+        "btn_text": "أنجزت 8 سكوات! 🦵",
+        "color": "#60A5FA",
+        "bg_grad": "stop:0 #0F172A, stop:0.5 #1E3A8A, stop:1 #1D4ED8"
+    },
+    {
+        "id": "jumping_jacks",
+        "name": "تمارين قفز الجاك",
+        "title": "تحدي اللياقة: 10 قفزات جاك 🤸",
+        "subtitle": "ارفع مستوى اليقظة والتركيز!\nقم بـ 10 قفزات (Jumping Jacks) لزيادة تدفق الأكسجين والدورة الدموية.",
+        "btn_text": "أنجزت 10 قفزات! 🤸",
+        "color": "#A78BFA",
+        "bg_grad": "stop:0 #1E1B4B, stop:0.5 #4C1D95, stop:1 #6D28D9"
+    },
+    {
+        "id": "plank",
+        "name": "تمرين البلانك",
+        "title": "تحدي اللياقة: 20 ثانية بلانك 🧘",
+        "subtitle": "تحدى إرادتك وقوتك الجسدية!\nاثبت في وضعية البلانك (Plank) لمدة 20 ثانية لتقوية عضلات الجذع والظهر.",
+        "btn_text": "أنجزت 20 ثانية بلانك! 🧘",
+        "color": "#34D399",
+        "bg_grad": "stop:0 #064E3B, stop:0.5 #047857, stop:1 #059669"
+    },
+    {
+        "id": "lunges",
+        "name": "تمارين الطعن (Lunges)",
+        "title": "تحدي اللياقة: 6 تكرارات طعن 🚶",
+        "subtitle": "جدد حيوية جسمك وساقيك!\nقم بعمل 6 تكرارات طعن (Lunges) لكل رجل لإعادة الحيوية والتوازن.",
+        "btn_text": "أنجزت تكرارات الطعن! 🚶",
+        "color": "#F0ABFC",
+        "bg_grad": "stop:0 #701A75, stop:0.5 #86198F, stop:1 #A21CAF"
+    },
+    {
+        "id": "stretch",
+        "name": "تمارين الإطالة والمد",
+        "title": "تحدي اللياقة: 30 ثانية إطالة 🙆",
+        "subtitle": "تخلص من الإجهاد العضلي والتعب!\nقم بتمارين إطالة سريعة للرقبة والكتفين لمدة 30 ثانية لتنعم بالاسترخاء.",
+        "btn_text": "أنجزت الإطالة! 🙆",
+        "color": "#FDBA74",
+        "bg_grad": "stop:0 #7C2D12, stop:0.5 #9A3412, stop:1 #C2410C"
+    }
+]
+
+class ExerciseOverlayWindow(QWidget):
+    """Dynamic full-screen exercise reminder overlay rotating through pushups, squats, jacks, plank, lunges & stretching."""
+    def __init__(self, exercise_info=None, audio_mgr=None, on_finish_callback=None):
         super().__init__()
         self.audio_mgr = audio_mgr
         self.on_finish_callback = on_finish_callback
+        if exercise_info is None:
+            self.ex_data = EXERCISES_LIST[0]
+        else:
+            self.ex_data = exercise_info
 
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
         self.showFullScreen()
@@ -265,46 +326,47 @@ class PushupsOverlayWindow(QWidget):
             self.audio_mgr.play_loop_alarm()
 
     def setup_ui(self):
-        # Ultra Modern Dark Amber / Orange Gradient
-        self.setStyleSheet("""
-            QWidget {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                                           stop:0 #1C0A00, stop:0.5 #451A03, stop:1 #7C2D12);
+        bg_grad = self.ex_data.get("bg_grad", "stop:0 #1C0A00, stop:0.5 #451A03, stop:1 #7C2D12")
+        border_col = self.ex_data.get("color", "#FB923C")
+
+        self.setStyleSheet(f"""
+            QWidget {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, {bg_grad});
                 color: #FFFFFF;
                 font-family: 'Madika Arabic TRIAL', 'Segoe UI', Tahoma, sans-serif;
-            }
-            QFrame#Card {
-                background-color: rgba(28, 10, 0, 0.96);
-                border: 2px solid #FB923C;
+            }}
+            QFrame#Card {{
+                background-color: rgba(15, 10, 25, 0.96);
+                border: 2px solid {border_col};
                 border-radius: 28px;
                 padding: 45px;
-            }
-            QLabel#HeaderTitle {
-                font-size: 40px;
+            }}
+            QLabel#HeaderTitle {{
+                font-size: 38px;
                 font-weight: bold;
-                color: #FB923C;
-            }
-            QLabel#SubTitle {
+                color: {border_col};
+            }}
+            QLabel#SubTitle {{
                 font-size: 22px;
-                color: #FFEDD5;
+                color: #F8FAFC;
                 line-height: 1.5;
-            }
-            QPushButton#ActionBtn {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #EA580C, stop:1 #C2410C);
-                color: white;
-                font-size: 25px;
+            }}
+            QPushButton#ActionBtn {{
+                background: {border_col};
+                color: #000000;
+                font-size: 24px;
                 font-weight: bold;
                 border-radius: 18px;
                 padding: 20px 50px;
-                border: 1px solid #FB923C;
-            }
-            QPushButton#ActionBtn:hover {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #F97316, stop:1 #EA580C);
-            }
-            QLabel#EmergencyHint {
+                border: none;
+            }}
+            QPushButton#ActionBtn:hover {{
+                opacity: 0.9;
+            }}
+            QLabel#EmergencyHint {{
                 font-size: 15px;
-                color: #FDBA74;
-            }
+                color: #94A3B8;
+            }}
         """)
 
         main_layout = QVBoxLayout(self)
@@ -318,25 +380,23 @@ class PushupsOverlayWindow(QWidget):
         card_layout.setAlignment(Qt.AlignCenter)
         card_layout.setSpacing(28)
 
-        # Tinted Gym Logo (Orange/White) scaled with zero cropping
-        pix = get_tinted_pixmap("gymlogo.png", "#FB923C", QSize(105, 105))
+        pix = get_tinted_pixmap("gymlogo.png", border_col, QSize(105, 105))
         if not pix.isNull():
             img_lbl = QLabel()
             img_lbl.setPixmap(pix)
             img_lbl.setAlignment(Qt.AlignCenter)
             card_layout.addWidget(img_lbl)
 
-        title = QLabel("تحدي اللياقة: قم بعمل 5 تمارين ضغط!")
+        title = QLabel(self.ex_data.get("title", "تحدي اللياقة"))
         title.setObjectName("HeaderTitle")
         title.setAlignment(Qt.AlignCenter)
 
-        subtitle = QLabel("مرت ساعتان كاملتان!\nقم الآن وأنجز 5 ضغطات لتنشيط الدورة الدموية وتجديد طاقتك الذهنية.")
+        subtitle = QLabel(self.ex_data.get("subtitle", ""))
         subtitle.setObjectName("SubTitle")
         subtitle.setWordWrap(True)
         subtitle.setAlignment(Qt.AlignCenter)
 
-        # Simple, clear single action button as requested
-        self.btn_finish = QPushButton("أنجزت 5 ضغطات! 🏋️")
+        self.btn_finish = QPushButton(self.ex_data.get("btn_text", "أنجزت التمرين! 🏋️"))
         self.btn_finish.setObjectName("ActionBtn")
         self.btn_finish.setCursor(Qt.PointingHandCursor)
         self.btn_finish.clicked.connect(self.finish_action)
@@ -358,7 +418,6 @@ class PushupsOverlayWindow(QWidget):
         self.close()
 
     def closeEvent(self, event):
-        """يُستدعى دائماً عند الإغلاق — سواء بالزر أو Alt+F4."""
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
         if self.on_finish_callback:
@@ -371,3 +430,10 @@ class PushupsOverlayWindow(QWidget):
             self.close()
         else:
             super().keyPressEvent(event)
+
+
+class PushupsOverlayWindow(ExerciseOverlayWindow):
+    """Backwards compatibility alias for ExerciseOverlayWindow."""
+    def __init__(self, audio_mgr=None, on_finish_callback=None):
+        super().__init__(exercise_info=EXERCISES_LIST[0], audio_mgr=audio_mgr, on_finish_callback=on_finish_callback)
+

@@ -1,39 +1,162 @@
 import psutil
 import time
 import os
+import sys
+import ctypes
+from ctypes import wintypes
+
+HOSTS_PATH = r"C:\Windows\System32\drivers\etc\hosts"
+BLOCK_HEADER = "# --- ProductivityHub Blocked Websites Start ---"
+BLOCK_FOOTER = "# --- ProductivityHub Blocked Websites End ---"
 
 class AppBlocker:
     def __init__(self, audio_mgr=None):
         self.audio_mgr = audio_mgr
         self.is_active = False
         self.blocked_list = set()
+        self.blocked_websites = set()
         self.last_blocked_app = ""
+        self.hosts_applied = False
 
     def set_blocked_apps(self, app_list):
-        # Normalize executables to lowercase
+        """Normalize executables to lowercase."""
         self.blocked_list = {app.strip().lower() for app in app_list if app.strip()}
 
+    def set_blocked_websites(self, site_list):
+        """Normalize website domain keywords to lowercase."""
+        cleaned = set()
+        for site in site_list:
+            s = site.strip().lower()
+            if s.startswith("http://"):
+                s = s[7:]
+            elif s.startswith("https://"):
+                s = s[8:]
+            if s.startswith("www."):
+                s = s[4:]
+            s = s.split('/')[0]
+            if s:
+                cleaned.add(s)
+        self.blocked_websites = cleaned
+        if self.is_active:
+            self._apply_hosts_blocking()
+
+    def set_active(self, active: bool):
+        self.is_active = active
+        if active:
+            self._apply_hosts_blocking()
+        else:
+            self._remove_hosts_blocking()
+
+    def _apply_hosts_blocking(self):
+        if not self.blocked_websites:
+            return
+        try:
+            entries = []
+            for site in self.blocked_websites:
+                entries.append(f"127.0.0.1 {site}")
+                entries.append(f"127.0.0.1 www.{site}")
+
+            content = []
+            if os.path.exists(HOSTS_PATH):
+                with open(HOSTS_PATH, "r", encoding="utf-8", errors="ignore") as f:
+                    lines = f.readlines()
+                
+                inside = False
+                for line in lines:
+                    if BLOCK_HEADER in line:
+                        inside = True
+                        continue
+                    if BLOCK_FOOTER in line:
+                        inside = False
+                        continue
+                    if not inside:
+                        content.append(line)
+
+            # Add new block block
+            new_block = f"\n{BLOCK_HEADER}\n" + "\n".join(entries) + f"\n{BLOCK_FOOTER}\n"
+            full_text = "".join(content).rstrip() + new_block
+
+            with open(HOSTS_PATH, "w", encoding="utf-8") as f:
+                f.write(full_text)
+            self.hosts_applied = True
+        except Exception as e:
+            # Hosts modification requires Administrator privileges
+            self.hosts_applied = False
+
+    def _remove_hosts_blocking(self):
+        try:
+            if not os.path.exists(HOSTS_PATH):
+                return
+            with open(HOSTS_PATH, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+
+            content = []
+            inside = False
+            for line in lines:
+                if BLOCK_HEADER in line:
+                    inside = True
+                    continue
+                if BLOCK_FOOTER in line:
+                    inside = False
+                    continue
+                if not inside:
+                    content.append(line)
+
+            with open(HOSTS_PATH, "w", encoding="utf-8") as f:
+                f.writelines(content)
+            self.hosts_applied = False
+        except Exception:
+            pass
+
     def check_and_enforce(self):
-        """Scans active processes and terminates any matching blocked apps if block is active."""
-        if not self.is_active or not self.blocked_list:
+        """Scans active processes and window titles; enforces app and website blocking."""
+        if not self.is_active:
             return []
 
         killed_apps = []
-        try:
-            for proc in psutil.process_iter(['pid', 'name']):
-                try:
-                    proc_name = proc.info['name']
-                    if proc_name and proc_name.lower() in self.blocked_list:
-                        # Terminate blocked process
-                        proc.kill()
-                        killed_apps.append(proc_name)
-                        self.last_blocked_app = proc_name
-                        if self.audio_mgr:
-                            self.audio_mgr.play_blocked_warning()
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    pass
-        except Exception as e:
-            print(f"Error checking processes: {e}")
+
+        # 1. Enforce Executable Process Blocking
+        if self.blocked_list:
+            try:
+                for proc in psutil.process_iter(['pid', 'name']):
+                    try:
+                        proc_name = proc.info['name']
+                        if proc_name and proc_name.lower() in self.blocked_list:
+                            proc.kill()
+                            killed_apps.append(proc_name)
+                            self.last_blocked_app = proc_name
+                            if self.audio_mgr:
+                                self.audio_mgr.play_blocked_warning()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                        pass
+            except Exception as e:
+                print(f"Error checking processes: {e}")
+
+        # 2. Enforce Website Blocking via Active Window Title Scan (Fallback / Active defense)
+        if self.blocked_websites and sys.platform.startswith("win"):
+            try:
+                hwnd = ctypes.windll.user32.GetForegroundWindow()
+                if hwnd:
+                    length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+                    if length > 0:
+                        buff = ctypes.create_unicode_buffer(length + 1)
+                        ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
+                        title = buff.value.lower()
+
+                        # Check if foreground window title matches any blocked website domain/keyword
+                        for site in self.blocked_websites:
+                            # site keyword e.g. "youtube", "facebook", "tiktok", "twitter", "instagram"
+                            domain_name = site.split('.')[0]
+                            if site in title or (len(domain_name) >= 4 and domain_name in title):
+                                # Minimize the offending window
+                                ctypes.windll.user32.ShowWindow(hwnd, 6) # SW_MINIMIZE
+                                killed_apps.append(f"موقع {site}")
+                                self.last_blocked_app = f"موقع محظور ({site})"
+                                if self.audio_mgr:
+                                    self.audio_mgr.play_blocked_warning()
+                                break
+            except Exception:
+                pass
 
         return killed_apps
 
