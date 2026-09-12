@@ -22,6 +22,7 @@ DEFAULT_CONFIG = {
         "pushups_count": 0,
         "learning_minutes": 0
     },
+    "daily_tasks": [],
     "manual_session_active": False,
     "manual_session_end_time": ""
 }

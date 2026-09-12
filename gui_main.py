@@ -4,7 +4,7 @@ import datetime
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QListWidget, QListWidgetItem, QLineEdit, QComboBox, QCheckBox,
-    QStackedWidget, QFrame, QDialog, QMessageBox, QSystemTrayIcon, QMenu, QSizePolicy
+    QStackedWidget, QFrame, QDialog, QMessageBox, QSystemTrayIcon, QMenu, QSizePolicy, QProgressBar
 )
 from PySide6.QtCore import Qt, QTime, QTimer, QSize
 from PySide6.QtGui import QFont, QIcon, QPixmap, QColor, QAction
@@ -220,6 +220,20 @@ class MainWindow(QMainWindow):
                 background-color: #0284C7;
                 border-color: #38BDF8;
             }
+            QProgressBar {
+                background-color: #0B0F19;
+                border: 1px solid #1F293D;
+                border-radius: 10px;
+                height: 24px;
+                text-align: center;
+                color: #F8FAFC;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #10B981);
+                border-radius: 9px;
+            }
         """)
 
     def setup_ui(self):
@@ -427,7 +441,55 @@ class MainWindow(QMainWindow):
         stats_grid.addWidget(card_session)
 
         layout.addLayout(stats_grid)
-        layout.addStretch()
+
+        # 📋 To-Do List Card
+        card_tasks = QFrame()
+        card_tasks.setObjectName("Card")
+        tasks_layout = QVBoxLayout(card_tasks)
+        tasks_layout.setSpacing(14)
+
+        # Header Row
+        tasks_header = QHBoxLayout()
+        lbl_tasks_title = QLabel("📋 قائمة المهام اليومية")
+        lbl_tasks_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #F8FAFC;")
+        
+        self.lbl_task_progress = QLabel("إنجاز المهام: 0%")
+        self.lbl_task_progress.setStyleSheet("font-size: 15px; font-weight: bold; color: #10B981;")
+
+        tasks_header.addWidget(lbl_tasks_title)
+        tasks_header.addStretch()
+        tasks_header.addWidget(self.lbl_task_progress)
+        tasks_layout.addLayout(tasks_header)
+
+        # Progress Bar
+        self.task_progress_bar = QProgressBar()
+        self.task_progress_bar.setRange(0, 100)
+        self.task_progress_bar.setValue(0)
+        tasks_layout.addWidget(self.task_progress_bar)
+
+        # Add Task Input Row
+        add_task_box = QHBoxLayout()
+        self.txt_task_input = QLineEdit()
+        self.txt_task_input.setPlaceholderText("اكتب مهمة جديدة هنا وأضغط إضافة أو Enter...")
+        self.txt_task_input.returnPressed.connect(self.add_task)
+
+        btn_add_task = QPushButton("إضافة مهمة ➕")
+        btn_add_task.setObjectName("PrimaryBtn")
+        btn_add_task.setCursor(Qt.PointingHandCursor)
+        btn_add_task.clicked.connect(self.add_task)
+
+        add_task_box.addWidget(self.txt_task_input, 1)
+        add_task_box.addWidget(btn_add_task, 0)
+        tasks_layout.addLayout(add_task_box)
+
+        # List Widget for Tasks
+        self.list_tasks = QListWidget()
+        self.list_tasks.setMinimumHeight(150)
+        self.list_tasks.setMaximumHeight(220)
+        tasks_layout.addWidget(self.list_tasks)
+
+        layout.addWidget(card_tasks)
+        self.reload_tasks_list()
 
         return page
 
@@ -870,6 +932,92 @@ class MainWindow(QMainWindow):
         btn_confirm.clicked.connect(confirm_selection)
         d_layout.addWidget(btn_confirm)
         dialog.exec()
+
+    # ─── To-Do Tasks Actions ────────────────────────────────────────────────
+    def add_task(self):
+        text = self.txt_task_input.text().strip()
+        if not text:
+            return
+
+        if "daily_tasks" not in self.config:
+            self.config["daily_tasks"] = []
+
+        self.config["daily_tasks"].append({
+            "text": text,
+            "completed": False
+        })
+        self.cfg_mgr.save_config()
+        self.txt_task_input.clear()
+        self.reload_tasks_list()
+
+    def toggle_task(self, index, is_checked):
+        if 0 <= index < len(self.config.get("daily_tasks", [])):
+            self.config["daily_tasks"][index]["completed"] = is_checked
+            self.cfg_mgr.save_config()
+            self.reload_tasks_list()
+
+    def delete_task(self, index):
+        if 0 <= index < len(self.config.get("daily_tasks", [])):
+            self.config["daily_tasks"].pop(index)
+            self.cfg_mgr.save_config()
+            self.reload_tasks_list()
+
+    def reload_tasks_list(self):
+        if not hasattr(self, 'list_tasks'):
+            return
+
+        self.list_tasks.clear()
+        tasks = self.config.get("daily_tasks", [])
+        total = len(tasks)
+        completed = sum(1 for t in tasks if t.get("completed", False))
+
+        if total > 0:
+            percent = int((completed / total) * 100)
+        else:
+            percent = 0
+
+        self.task_progress_bar.setValue(percent)
+        self.lbl_task_progress.setText(f"إنجاز المهام: {percent}% ({completed} من {total})")
+
+        trash_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(20, 20))
+
+        for idx, task in enumerate(tasks):
+            item = QListWidgetItem(self.list_tasks)
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(12, 8, 12, 8)
+            row_layout.setSpacing(12)
+
+            chk = QCheckBox(task.get("text", ""))
+            chk.setChecked(task.get("completed", False))
+            if task.get("completed", False):
+                chk.setStyleSheet("color: #64748B; text-decoration: line-through; font-size: 16px;")
+            else:
+                chk.setStyleSheet("color: #F8FAFC; font-size: 16px; font-weight: 500;")
+
+            chk.stateChanged.connect(lambda state, i=idx: self.toggle_task(i, state == 2))
+
+            btn_del = QPushButton()
+            btn_del.setObjectName("IconTrashBtn")
+            btn_del.setCursor(Qt.PointingHandCursor)
+            btn_del.setFixedSize(36, 36)
+            if not trash_pix.isNull():
+                btn_del.setIcon(QIcon(trash_pix))
+                btn_del.setIconSize(QSize(18, 18))
+            btn_del.setToolTip("حذف المهمة")
+            btn_del.clicked.connect(lambda ch, i=idx: self.delete_task(i))
+
+            row_layout.addWidget(chk, 1)
+            row_layout.addWidget(btn_del, 0, Qt.AlignRight | Qt.AlignVCenter)
+
+            row_widget.setLayout(row_layout)
+
+            hint = row_widget.sizeHint()
+            hint.setHeight(max(hint.height(), 50))
+            item.setSizeHint(hint)
+
+            self.list_tasks.addItem(item)
+            self.list_tasks.setItemWidget(item, row_widget)
 
     # Manual Start / Finish Session Actions
     def start_manual_session(self):
