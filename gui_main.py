@@ -59,6 +59,8 @@ class MainWindow(QMainWindow):
         self._pushups_overlay_open = False
         self._schedule_overlay_open = False
 
+        self.current_task_filter = "all"
+
         self.setWindowTitle("مركز الإنتاجية الذكي | Productivity Hub")
         self.resize(1080, 740)
         self.setMinimumSize(940, 660)
@@ -233,6 +235,24 @@ class MainWindow(QMainWindow):
             QProgressBar::chunk {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #10B981);
                 border-radius: 9px;
+            }
+            QPushButton#FilterBtn {
+                background-color: #1E293B;
+                color: #94A3B8;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 5px 12px;
+                border-radius: 8px;
+                border: 1px solid #334155;
+            }
+            QPushButton#FilterBtn:hover {
+                background-color: #334155;
+                color: white;
+            }
+            QPushButton#FilterBtn[active="true"] {
+                background-color: #0284C7;
+                color: white;
+                border-color: #38BDF8;
             }
         """)
 
@@ -456,7 +476,25 @@ class MainWindow(QMainWindow):
         self.lbl_task_progress = QLabel("إنجاز المهام: 0%")
         self.lbl_task_progress.setStyleSheet("font-size: 15px; font-weight: bold; color: #10B981;")
 
+        # Filter Buttons
+        filter_box = QHBoxLayout()
+        filter_box.setSpacing(6)
+        self.btn_filter_all = QPushButton("الكل")
+        self.btn_filter_active = QPushButton("النشطة ⏳")
+        self.btn_filter_completed = QPushButton("المكتملة ✅")
+
+        for b, f_val in [(self.btn_filter_all, "all"), (self.btn_filter_active, "active"), (self.btn_filter_completed, "completed")]:
+            b.setObjectName("FilterBtn")
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda ch, val=f_val: self.set_task_filter(val))
+
+        filter_box.addWidget(self.btn_filter_all)
+        filter_box.addWidget(self.btn_filter_active)
+        filter_box.addWidget(self.btn_filter_completed)
+
         tasks_header.addWidget(lbl_tasks_title)
+        tasks_header.addSpacing(15)
+        tasks_header.addLayout(filter_box)
         tasks_header.addStretch()
         tasks_header.addWidget(self.lbl_task_progress)
         tasks_layout.addLayout(tasks_header)
@@ -632,6 +670,12 @@ class MainWindow(QMainWindow):
         desc = QLabel("أثناء جلسة التعلم النشطة، سيمنع التطبيق البرامج المحددة للقضاء على التشتت.")
         desc.setStyleSheet("color: #94A3B8; font-size: 15px;")
         layout.addWidget(desc)
+
+        # 🔍 Search Box for Blocked Apps
+        self.txt_search_blocked_apps = QLineEdit()
+        self.txt_search_blocked_apps.setPlaceholderText("🔍 ابحث في قائمة التطبيقات الممنوعة...")
+        self.txt_search_blocked_apps.textChanged.connect(self.reload_blocked_apps_list)
+        layout.addWidget(self.txt_search_blocked_apps)
 
         self.list_blocked_apps = QListWidget()
         self.list_blocked_apps.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -835,11 +879,34 @@ class MainWindow(QMainWindow):
     # Reload Blocked Apps List
     def reload_blocked_apps_list(self):
         self.list_blocked_apps.clear()
+
+        query = ""
+        if hasattr(self, "txt_search_blocked_apps"):
+            query = self.txt_search_blocked_apps.text().strip().lower()
+
+        all_apps = self.config.get("blocked_apps", [])
+        filtered = [app for app in all_apps if query in app.lower()]
+
+        if not filtered:
+            item = QListWidgetItem(self.list_blocked_apps)
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            msg = f"🔍 لا توجد نتائج لـ '{query}'" if query else "🚫 لا توجد تطبيقات ممنوعة في القائمة حالياً"
+            lbl = QLabel(msg)
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet("font-size: 15px; color: #94A3B8; padding: 15px;")
+            row_layout.addWidget(lbl)
+            row_widget.setLayout(row_layout)
+            item.setSizeHint(QSize(0, 60))
+            self.list_blocked_apps.addItem(item)
+            self.list_blocked_apps.setItemWidget(item, row_widget)
+            return
         
         forb_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(24, 24))
         trash_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(22, 22))
 
-        for idx, app in enumerate(self.config.get("blocked_apps", [])):
+        for app in filtered:
+            orig_idx = all_apps.index(app)
             list_item = QListWidgetItem(self.list_blocked_apps)
             
             row_widget = QWidget()
@@ -865,7 +932,7 @@ class MainWindow(QMainWindow):
                 btn_del.setIcon(QIcon(trash_pix))
                 btn_del.setIconSize(QSize(22, 22))
             btn_del.setToolTip("حذف التطبيق الممنوع")
-            btn_del.clicked.connect(lambda ch, i=idx: self.delete_blocked_app(i))
+            btn_del.clicked.connect(lambda ch, i=orig_idx: self.delete_blocked_app(i))
 
             row_layout.addWidget(lbl, 1)
             row_layout.addWidget(btn_del, 0, Qt.AlignRight | Qt.AlignVCenter)
@@ -962,40 +1029,94 @@ class MainWindow(QMainWindow):
             self.cfg_mgr.save_config()
             self.reload_tasks_list()
 
+    def set_task_filter(self, filter_val):
+        self.current_task_filter = filter_val
+        self.reload_tasks_list()
+
     def reload_tasks_list(self):
         if not hasattr(self, 'list_tasks'):
             return
 
-        self.list_tasks.clear()
-        tasks = self.config.get("daily_tasks", [])
-        total = len(tasks)
-        completed = sum(1 for t in tasks if t.get("completed", False))
+        # Update filter buttons active styling
+        if hasattr(self, 'btn_filter_all'):
+            self.btn_filter_all.setProperty("active", "true" if self.current_task_filter == "all" else "false")
+            self.btn_filter_active.setProperty("active", "true" if self.current_task_filter == "active" else "false")
+            self.btn_filter_completed.setProperty("active", "true" if self.current_task_filter == "completed" else "false")
 
-        if total > 0:
-            percent = int((completed / total) * 100)
-        else:
-            percent = 0
+            for b in [self.btn_filter_all, self.btn_filter_active, self.btn_filter_completed]:
+                b.setStyle(b.style())
+
+        self.list_tasks.clear()
+        all_tasks = self.config.get("daily_tasks", [])
+        total = len(all_tasks)
+        completed_count = sum(1 for t in all_tasks if t.get("completed", False))
+
+        percent = int((completed_count / total) * 100) if total > 0 else 0
 
         self.task_progress_bar.setValue(percent)
-        self.lbl_task_progress.setText(f"إنجاز المهام: {percent}% ({completed} من {total})")
+        self.lbl_task_progress.setText(f"إنجاز المهام: {percent}% ({completed_count} من {total})")
 
-        trash_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(20, 20))
+        # Filter tasks
+        filtered_tasks = []
+        for idx, t in enumerate(all_tasks):
+            is_comp = t.get("completed", False)
+            if self.current_task_filter == "all":
+                filtered_tasks.append((idx, t))
+            elif self.current_task_filter == "active" and not is_comp:
+                filtered_tasks.append((idx, t))
+            elif self.current_task_filter == "completed" and is_comp:
+                filtered_tasks.append((idx, t))
 
-        for idx, task in enumerate(tasks):
+        if not filtered_tasks:
             item = QListWidgetItem(self.list_tasks)
             row_widget = QWidget()
             row_layout = QHBoxLayout(row_widget)
-            row_layout.setContentsMargins(12, 8, 12, 8)
+            
+            if total == 0:
+                msg = "✨ لا توجد مهام بعد — أضف أول مهمة لبدء يومك بإنتاجية!"
+            elif self.current_task_filter == "active":
+                msg = "🎉 رائع جداً! لا توجد مهام معلقة (جميع المهام مكتملة)."
+            elif self.current_task_filter == "completed":
+                msg = "📌 لم تكتمل أي مهمة بعد — ابدأ بإكمال أول مهمة اليوم!"
+            else:
+                msg = "لا توجد مهام مطابقة."
+
+            lbl = QLabel(msg)
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet("font-size: 15px; color: #94A3B8; padding: 18px;")
+            row_layout.addWidget(lbl)
+            row_widget.setLayout(row_layout)
+            item.setSizeHint(QSize(0, 55))
+            self.list_tasks.addItem(item)
+            self.list_tasks.setItemWidget(item, row_widget)
+            return
+
+        trash_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(20, 20))
+
+        for orig_idx, task in filtered_tasks:
+            item = QListWidgetItem(self.list_tasks)
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(14, 10, 14, 10)
             row_layout.setSpacing(12)
 
+            is_done = task.get("completed", False)
+
             chk = QCheckBox(task.get("text", ""))
-            chk.setChecked(task.get("completed", False))
-            if task.get("completed", False):
+            chk.setChecked(is_done)
+            if is_done:
                 chk.setStyleSheet("color: #64748B; text-decoration: line-through; font-size: 16px;")
             else:
-                chk.setStyleSheet("color: #F8FAFC; font-size: 16px; font-weight: 500;")
+                chk.setStyleSheet("color: #F8FAFC; font-size: 16px; font-weight: 600;")
 
-            chk.stateChanged.connect(lambda state, i=idx: self.toggle_task(i, state == 2))
+            chk.stateChanged.connect(lambda state, i=orig_idx: self.toggle_task(i, state == 2))
+
+            # Status Badge Label
+            lbl_badge = QLabel("مكتملة ✅" if is_done else "قيد الانتظار ⏳")
+            if is_done:
+                lbl_badge.setStyleSheet("background-color: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 12px; font-weight: bold; border-radius: 6px; padding: 4px 8px;")
+            else:
+                lbl_badge.setStyleSheet("background-color: rgba(56, 189, 248, 0.15); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.4); font-size: 12px; font-weight: bold; border-radius: 6px; padding: 4px 8px;")
 
             btn_del = QPushButton()
             btn_del.setObjectName("IconTrashBtn")
@@ -1005,15 +1126,16 @@ class MainWindow(QMainWindow):
                 btn_del.setIcon(QIcon(trash_pix))
                 btn_del.setIconSize(QSize(18, 18))
             btn_del.setToolTip("حذف المهمة")
-            btn_del.clicked.connect(lambda ch, i=idx: self.delete_task(i))
+            btn_del.clicked.connect(lambda ch, i=orig_idx: self.delete_task(i))
 
             row_layout.addWidget(chk, 1)
+            row_layout.addWidget(lbl_badge, 0, Qt.AlignRight | Qt.AlignVCenter)
             row_layout.addWidget(btn_del, 0, Qt.AlignRight | Qt.AlignVCenter)
 
             row_widget.setLayout(row_layout)
 
             hint = row_widget.sizeHint()
-            hint.setHeight(max(hint.height(), 50))
+            hint.setHeight(max(hint.height(), 52))
             item.setSizeHint(hint)
 
             self.list_tasks.addItem(item)
