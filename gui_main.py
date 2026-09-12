@@ -292,20 +292,22 @@ class MainWindow(QMainWindow):
 
         self.btn_nav_dash = self.create_nav_button(" الرئيسية", "homelogo.png", 0)
         self.btn_nav_tasks = self.create_nav_button(" المهام اليومية", "bullseye-arrowlogo.png", 1)
-        self.btn_nav_sched = self.create_nav_button(" جدول التعلم", "calendarlogo.png", 2)
-        self.btn_nav_block = self.create_nav_button(" التطبيقات الممنوعة", "forbiddenapps.png", 3)
-        self.btn_nav_sets = self.create_nav_button(" الإعدادات والاختبار", "settingslogo.png", 4)
+        self.btn_nav_badge = self.create_nav_button(" الإحصائيات والأوسمة", "bullseye-arrowlogo.png", 2)
+        self.btn_nav_sched = self.create_nav_button(" جدول التعلم", "calendarlogo.png", 3)
+        self.btn_nav_block = self.create_nav_button(" التطبيقات الممنوعة", "forbiddenapps.png", 4)
+        self.btn_nav_sets = self.create_nav_button(" الإعدادات والاختبار", "settingslogo.png", 5)
 
         self.btn_nav_dash.setProperty("active", "true")
 
         sidebar_layout.addWidget(self.btn_nav_dash)
         sidebar_layout.addWidget(self.btn_nav_tasks)
+        sidebar_layout.addWidget(self.btn_nav_badge)
         sidebar_layout.addWidget(self.btn_nav_sched)
         sidebar_layout.addWidget(self.btn_nav_block)
         sidebar_layout.addWidget(self.btn_nav_sets)
         sidebar_layout.addStretch()
 
-        ver_lbl = QLabel("الإصدار الأسهل 4.0 ⚡")
+        ver_lbl = QLabel("الإصدار الأسطوري 5.0 ⚡")
         ver_lbl.setStyleSheet("color: #64748B; font-size: 13px;")
         ver_lbl.setAlignment(Qt.AlignCenter)
         sidebar_layout.addWidget(ver_lbl)
@@ -314,6 +316,7 @@ class MainWindow(QMainWindow):
         self.pages = QStackedWidget()
         self.pages.addWidget(self.create_dashboard_page())
         self.pages.addWidget(self.create_tasks_page())
+        self.pages.addWidget(self.create_analytics_page())
         self.pages.addWidget(self.create_schedules_page())
         self.pages.addWidget(self.create_blocked_apps_page())
         self.pages.addWidget(self.create_settings_page())
@@ -336,7 +339,7 @@ class MainWindow(QMainWindow):
 
     def switch_page(self, index):
         self.pages.setCurrentIndex(index)
-        nav_btns = [self.btn_nav_dash, self.btn_nav_tasks, self.btn_nav_sched, self.btn_nav_block, self.btn_nav_sets]
+        nav_btns = [self.btn_nav_dash, self.btn_nav_tasks, self.btn_nav_badge, self.btn_nav_sched, self.btn_nav_block, self.btn_nav_sets]
         for i, btn in enumerate(nav_btns):
             btn.setProperty("active", "true" if i == index else "false")
             btn.setStyle(btn.style())
@@ -677,6 +680,97 @@ class MainWindow(QMainWindow):
 
         return page
 
+    # Page 1.8: Analytics & Gamification Showcase
+    def create_analytics_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(32, 28, 32, 28)
+        layout.setSpacing(18)
+
+        # Header Title
+        title_box = QHBoxLayout()
+        trophy_pix = get_tinted_pixmap("bullseye-arrowlogo.png", "#F59E0B", QSize(36, 36))
+        if not trophy_pix.isNull():
+            ic_lbl = QLabel()
+            ic_lbl.setPixmap(trophy_pix)
+            title_box.addWidget(ic_lbl)
+
+        title = QLabel("🏆 إحصائياتك وشارات الإنجاز")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #F8FAFC;")
+        title_box.addWidget(title)
+        title_box.addStretch()
+
+        layout.addLayout(title_box)
+
+        # Gamification Score Card
+        score_card = QFrame()
+        score_card.setObjectName("Card")
+        score_card.setStyleSheet("background-color: #111827; border-left: 6px solid #F59E0B;")
+        sc_layout = QHBoxLayout(score_card)
+
+        sc_info = QVBoxLayout()
+        self.lbl_user_score_title = QLabel("⚡ نقاط الإنتاجية والتركيز")
+        self.lbl_user_score_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #F59E0B;")
+        
+        self.lbl_user_score_value = QLabel(f"{self.config.get('user_score', 0)} نقطة")
+        self.lbl_user_score_value.setStyleSheet("font-size: 32px; font-weight: bold; color: #F8FAFC;")
+
+        sc_info.addWidget(self.lbl_user_score_title)
+        sc_info.addWidget(self.lbl_user_score_value)
+
+        # Level Badge
+        sc_level_box = QVBoxLayout()
+        sc_level_box.setAlignment(Qt.AlignCenter)
+        self.lbl_level_badge = QLabel("المستوى 1: مبتدئ نشيط 🌱")
+        self.lbl_level_badge.setStyleSheet("background-color: rgba(245, 158, 11, 0.18); color: #F59E0B; border: 1px solid #F59E0B; font-size: 16px; font-weight: bold; border-radius: 12px; padding: 10px 20px;")
+        sc_level_box.addWidget(self.lbl_level_badge)
+
+        sc_layout.addLayout(sc_info)
+        sc_layout.addStretch()
+        sc_layout.addLayout(sc_level_box)
+
+        layout.addWidget(score_card)
+
+        # Weekly Progress & Bar Visualization Card
+        weekly_card = QFrame()
+        weekly_card.setObjectName("Card")
+        wk_layout = QVBoxLayout(weekly_card)
+        wk_layout.setSpacing(14)
+
+        wk_title = QLabel("📊 الإنجاز والتطور الأسبوعي (أخر 7 أيام)")
+        wk_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #38BDF8;")
+        wk_layout.addWidget(wk_title)
+
+        self.lbl_best_day = QLabel("🏆 أفضل يوم إنتاجية هذا الأسبوع: اليوم!")
+        self.lbl_best_day.setStyleSheet("font-size: 15px; color: #10B981; font-weight: bold;")
+        wk_layout.addWidget(self.lbl_best_day)
+
+        # Weekly Bars Container
+        self.weekly_bars_layout = QHBoxLayout()
+        self.weekly_bars_layout.setSpacing(12)
+        wk_layout.addLayout(self.weekly_bars_layout)
+
+        layout.addWidget(weekly_card)
+
+        # Badges Showcase Card
+        badges_card = QFrame()
+        badges_card.setObjectName("Card")
+        bg_layout = QVBoxLayout(badges_card)
+        bg_layout.setSpacing(14)
+
+        bg_title = QLabel("🎖️ معرض الأوسمة والتحديات:")
+        bg_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #F8FAFC;")
+        bg_layout.addWidget(bg_title)
+
+        self.badges_grid = QHBoxLayout()
+        self.badges_grid.setSpacing(12)
+        bg_layout.addLayout(self.badges_grid)
+
+        layout.addWidget(badges_card)
+
+        self.reload_analytics_ui()
+        return page
+
     # Page 2: Schedules (SUPER EASY 1-CLICK PRESETS + EASY DROPDOWN PICKER)
     def create_schedules_page(self):
         page = QWidget()
@@ -879,6 +973,53 @@ class MainWindow(QMainWindow):
         opts_layout.addWidget(self.chk_sound)
 
         layout.addWidget(opts_card)
+
+        # Custom Interval Settings Card
+        interval_card = QFrame()
+        interval_card.setObjectName("Card")
+        interval_layout = QVBoxLayout(interval_card)
+        interval_layout.setSpacing(14)
+
+        interval_title = QLabel("⏱️ تحديد مواعيد وتكرار التذكيرات الصحية")
+        interval_title.setObjectName("CardTitle")
+        interval_layout.addWidget(interval_title)
+
+        interval_row = QHBoxLayout()
+        interval_row.setSpacing(20)
+
+        # Water Interval
+        water_box = QVBoxLayout()
+        water_box.addWidget(QLabel("💧 تذكير شرب الماء:"))
+        self.cmb_water_interval = QComboBox()
+        for m in [15, 20, 30, 40, 50, 60, 90]:
+            self.cmb_water_interval.addItem(f"كل {m} دقيقة", m)
+
+        curr_w = self.config.get("water_interval_min", 40)
+        idx_w = self.cmb_water_interval.findData(curr_w)
+        if idx_w != -1:
+            self.cmb_water_interval.setCurrentIndex(idx_w)
+        self.cmb_water_interval.currentIndexChanged.connect(self.change_water_interval)
+        water_box.addWidget(self.cmb_water_interval)
+
+        # Pushups Interval
+        pushups_box = QVBoxLayout()
+        pushups_box.addWidget(QLabel("🏋️ تذكير تمارين الضغط:"))
+        self.cmb_pushups_interval = QComboBox()
+        for m in [30, 45, 60, 90, 120, 180]:
+            self.cmb_pushups_interval.addItem(f"كل {m} دقيقة", m)
+
+        curr_p = self.config.get("pushups_interval_min", 120)
+        idx_p = self.cmb_pushups_interval.findData(curr_p)
+        if idx_p != -1:
+            self.cmb_pushups_interval.setCurrentIndex(idx_p)
+        self.cmb_pushups_interval.currentIndexChanged.connect(self.change_pushups_interval)
+        pushups_box.addWidget(self.cmb_pushups_interval)
+
+        interval_row.addLayout(water_box)
+        interval_row.addLayout(pushups_box)
+        interval_layout.addLayout(interval_row)
+
+        layout.addWidget(interval_card)
 
         # Test Center
         test_card = QFrame()
@@ -1411,15 +1552,59 @@ class MainWindow(QMainWindow):
             on_finish_callback=self.handle_overlay_finish
         )
 
+    def change_water_interval(self, index):
+        val = self.cmb_water_interval.itemData(index)
+        if val:
+            self.config["water_interval_min"] = val
+            self.cfg_mgr.save_config()
+
+    def change_pushups_interval(self, index):
+        val = self.cmb_pushups_interval.itemData(index)
+        if val:
+            self.config["pushups_interval_min"] = val
+            self.cfg_mgr.save_config()
+
+    def award_points(self, amount, reason=""):
+        curr = self.config.get("user_score", 0) + amount
+        self.config["user_score"] = curr
+        
+        # Unlocked badges evaluation
+        unlocked = self.config.get("unlocked_badges", [])
+        w_cnt = self.config.get("daily_stats", {}).get("water_count", 0)
+        p_cnt = self.config.get("daily_stats", {}).get("pushups_count", 0)
+        l_min = self.config.get("daily_stats", {}).get("learning_minutes", 0)
+        t_cnt = sum(1 for t in self.config.get("daily_tasks", []) if t.get("completed", False))
+
+        if w_cnt >= 3 and "b_water_1" not in unlocked:
+            unlocked.append("b_water_1")
+        if w_cnt >= 10 and "b_water_2" not in unlocked:
+            unlocked.append("b_water_2")
+        if p_cnt >= 15 and "b_pushups_1" not in unlocked:
+            unlocked.append("b_pushups_1")
+        if l_min >= 60 and "b_learn_1" not in unlocked:
+            unlocked.append("b_learn_1")
+        if l_min >= 180 and "b_learn_2" not in unlocked:
+            unlocked.append("b_learn_2")
+        if t_cnt >= 3 and "b_tasks_1" not in unlocked:
+            unlocked.append("b_tasks_1")
+        if curr >= 100 and "b_score_100" not in unlocked:
+            unlocked.append("b_score_100")
+
+        self.config["unlocked_badges"] = unlocked
+        self.cfg_mgr.save_config()
+        self.reload_analytics_ui()
+
     def handle_overlay_finish(self, overlay_type):
         if overlay_type == "water":
             self._water_overlay_open = False
             self.config["daily_stats"]["water_count"] += 1
             self.lbl_stat_water.setText(f"{self.config['daily_stats']['water_count']} أكواب")
+            self.award_points(15, "ماء")
         elif overlay_type == "pushups":
             self._pushups_overlay_open = False
             self.config["daily_stats"]["pushups_count"] += 5
             self.lbl_stat_pushups.setText(f"{self.config['daily_stats']['pushups_count']} ضغطات")
+            self.award_points(20, "بوش أب")
         elif overlay_type == "schedule":
             self._schedule_overlay_open = False
         self.cfg_mgr.save_config()
@@ -1463,6 +1648,16 @@ class MainWindow(QMainWindow):
         if self.app_blocker.is_active:
             self.config["daily_stats"]["learning_minutes"] += 1
             self.lbl_stat_time.setText(f"{self.config['daily_stats']['learning_minutes']} دقيقة")
+            self.award_points(1, "دقيقة تعلم")
+
+            today_str = datetime.date.today().isoformat()
+            if "weekly_history" not in self.config:
+                self.config["weekly_history"] = {}
+            self.config["weekly_history"][today_str] = {
+                "learning_minutes": self.config["daily_stats"]["learning_minutes"],
+                "water_count": self.config["daily_stats"]["water_count"],
+                "pushups_count": self.config["daily_stats"]["pushups_count"]
+            }
             self.cfg_mgr.save_config()
 
         self.water_timer_counter += 1

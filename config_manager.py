@@ -23,6 +23,9 @@ DEFAULT_CONFIG = {
         "learning_minutes": 0
     },
     "daily_tasks": [],
+    "user_score": 0,
+    "unlocked_badges": [],
+    "weekly_history": {},
     "manual_session_active": False,
     "manual_session_end_time": ""
 }
