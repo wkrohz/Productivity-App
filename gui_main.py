@@ -142,7 +142,7 @@ class MainWindow(QMainWindow):
         self.current_task_filter = "all"
         self.current_badge_filter = "all"
 
-        self.setWindowTitle("مركز الإنتاجية الذكي | Productivity Hub")
+        self.setWindowTitle("انتاجيتي | مركز الإنتاجية الذكي")
         self.resize(1200, 820)
         self.setMinimumSize(1000, 700)
 
@@ -526,7 +526,7 @@ class MainWindow(QMainWindow):
 
         title_vbox = QVBoxLayout()
         title_vbox.setSpacing(1)
-        app_title = QLabel("مركز الإنتاجية")
+        app_title = QLabel("انتاجيتي")
         app_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #38BDF8; letter-spacing: 0px;")
         app_sub = QLabel("Productivity Hub")
         app_sub.setStyleSheet("font-size: 11px; color: #334155; font-weight: 500;")

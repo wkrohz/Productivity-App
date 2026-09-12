@@ -148,8 +148,18 @@ class AppBlocker:
                             # site keyword e.g. "youtube", "facebook", "tiktok", "twitter", "instagram"
                             domain_name = site.split('.')[0]
                             if site in title or (len(domain_name) >= 4 and domain_name in title):
-                                # Minimize the offending window
-                                ctypes.windll.user32.ShowWindow(hwnd, 6) # SW_MINIMIZE
+                                # Send Ctrl+W to close active browser tab cleanly
+                                now = time.time()
+                                if now - getattr(self, '_last_tab_close_time', 0) > 0.8:
+                                    self._last_tab_close_time = now
+                                    VK_CONTROL = 0x11
+                                    VK_W = 0x57
+                                    KEYEVENTF_KEYUP = 0x0002
+                                    ctypes.windll.user32.keybd_event(VK_CONTROL, 0, 0, 0)
+                                    ctypes.windll.user32.keybd_event(VK_W, 0, 0, 0)
+                                    ctypes.windll.user32.keybd_event(VK_W, 0, KEYEVENTF_KEYUP, 0)
+                                    ctypes.windll.user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+
                                 killed_apps.append(f"موقع {site}")
                                 self.last_blocked_app = f"موقع محظور ({site})"
                                 if self.audio_mgr:
