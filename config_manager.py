@@ -80,6 +80,14 @@ DEFAULT_CONFIG = {
             {"id": "sunnah_qiyam", "name": "🌙 صلاة قيام الليل والوتر", "time": "02:00", "enabled": True},
             {"id": "sunnah_fajr", "name": "🌅 سنة الفجر (الركعتين)", "time": "04:30", "enabled": True}
         ]
+    },
+    "streak_data": {
+        "current_streak": 0,
+        "last_active_date": "",
+        "freezes_remaining": 3,
+        "current_month": "",
+        "is_alive": True,
+        "total_rescues_used": 0
     }
 }
 
@@ -98,6 +106,12 @@ class ConfigManager:
                     cfg = json.load(f)
                     merged = DEFAULT_CONFIG.copy()
                     merged.update(cfg)
+                    if "streak_data" not in cfg:
+                        merged["streak_data"] = DEFAULT_CONFIG["streak_data"].copy()
+                    else:
+                        s_data = DEFAULT_CONFIG["streak_data"].copy()
+                        s_data.update(cfg["streak_data"])
+                        merged["streak_data"] = s_data
                     return merged
             except Exception as e:
                 print(f"Error loading config: {e}")

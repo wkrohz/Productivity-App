@@ -668,6 +668,7 @@ class MainWindow(QMainWindow):
 
         self.setup_styles()
         self.setup_ui()
+        self.update_streak_logic()
         self.setup_system_tray()
         self.setup_background_timers()
 
@@ -1230,8 +1231,23 @@ class MainWindow(QMainWindow):
         btn_box.addWidget(self.btn_start_learning)
         btn_box.addWidget(self.btn_finish_learning)
 
+        # Top Streak Header Badge
+        self.card_top_streak = QFrame()
+        self.card_top_streak.setCursor(Qt.PointingHandCursor)
+        top_strk_l = QHBoxLayout(self.card_top_streak)
+        top_strk_l.setContentsMargins(10, 6, 14, 6)
+        top_strk_l.setSpacing(8)
+
+        self.lbl_top_streak_icon = QLabel()
+        self.lbl_top_streak_text = QLabel("0 يوم 🔥")
+        self.lbl_top_streak_text.setStyleSheet("font-size: 14px; font-weight: 800; color: #FFFFFF;")
+
+        top_strk_l.addWidget(self.lbl_top_streak_icon)
+        top_strk_l.addWidget(self.lbl_top_streak_text)
+
         status_layout.addLayout(status_info, 1)
         status_layout.addLayout(btn_box)
+        status_layout.addWidget(self.card_top_streak, alignment=Qt.AlignRight | Qt.AlignVCenter)
 
         layout.addWidget(self.status_card)
 
@@ -1342,9 +1358,45 @@ class MainWindow(QMainWindow):
         card_pushups = make_stat_card("🏋️", "تمارين اليوم", "lbl_stat_pushups", f"{push_count} ضغطات", "#FB923C", "gymlogo.png")
         card_session = make_stat_card("⏱️", "وقت التعلم اليوم", "lbl_stat_time", f"{learn_mins} دقيقة", "#10B981", "clocklogo.png")
 
+        # Streak Stat Card
+        card_streak = QFrame()
+        card_streak.setObjectName("StatCard")
+        card_streak.setStyleSheet("""
+            QFrame#StatCard {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #1F140E, stop:1 #110B07);
+                border: 1px solid rgba(249, 115, 22, 0.25);
+                border-top: 3px solid #F97316;
+                border-radius: 18px;
+            }
+        """)
+        c_streak_l = QVBoxLayout(card_streak)
+        c_streak_l.setContentsMargins(20, 18, 20, 18)
+        c_streak_l.setSpacing(8)
+
+        st_top_row = QHBoxLayout()
+        st_top_row.setSpacing(10)
+
+        self.lbl_streak_icon = QLabel()
+        st_title_lbl = QLabel("الستريك والتتابع")
+        st_title_lbl.setStyleSheet("font-size: 13px; color: #94A3B8; font-weight: 600;")
+        st_top_row.addWidget(self.lbl_streak_icon)
+        st_top_row.addWidget(st_title_lbl)
+        st_top_row.addStretch()
+        c_streak_l.addLayout(st_top_row)
+
+        self.lbl_streak_val = QLabel("0 أيام")
+        self.lbl_streak_val.setStyleSheet("font-size: 26px; font-weight: bold; color: #F8FAFC;")
+        c_streak_l.addWidget(self.lbl_streak_val)
+
+        self.lbl_streak_freezes = QLabel("🛡️ 3/3 إنقاذات متبقية")
+        self.lbl_streak_freezes.setStyleSheet("font-size: 12px; color: #F59E0B; font-weight: bold;")
+        c_streak_l.addWidget(self.lbl_streak_freezes)
+
         stats_grid.addWidget(card_water)
         stats_grid.addWidget(card_pushups)
         stats_grid.addWidget(card_session)
+        stats_grid.addWidget(card_streak)
         layout.addLayout(stats_grid)
 
         # ── Next Reminders & Timers Card ───────────────────────────────────
@@ -2979,6 +3031,7 @@ class MainWindow(QMainWindow):
         self.config["manual_session_is_strict"] = False
         self.cfg_mgr.save_config()
         self.update_status_ui(False)
+        self.record_streak_activity()
 
     def update_status_ui(self, active: bool):
         is_strict = self.config.get("manual_session_is_strict", False)
@@ -3597,6 +3650,8 @@ class MainWindow(QMainWindow):
             self.config["daily_stats"]["learning_minutes"] += 1
             self.lbl_stat_time.setText(f"{self.config['daily_stats']['learning_minutes']} دقيقة")
             self.award_points(1, "دقيقة تعلم")
+            if self.config["daily_stats"]["learning_minutes"] >= 15:
+                self.record_streak_activity()
 
             # 💡 Motivational notifications during active study session
             self.study_motivate_counter = getattr(self, "study_motivate_counter", 0) + 1
@@ -3733,6 +3788,128 @@ class MainWindow(QMainWindow):
 
         # Hide entire card if all 3 are disabled
         self.card_next_timers.setVisible(visible_count > 0)
+
+    # ─── STREAK MANAGEMENT ──────────────────────────────────────────────────
+    def update_streak_logic(self):
+        s_data = self.config.get("streak_data", {})
+        today = datetime.date.today()
+        today_str = today.isoformat()
+        current_month_str = today.strftime("%Y-%m")
+
+        # 1. Reset monthly freezes if month changed
+        if s_data.get("current_month") != current_month_str:
+            s_data["current_month"] = current_month_str
+            s_data["freezes_remaining"] = 3
+
+        last_active_str = s_data.get("last_active_date", "")
+
+        if last_active_str:
+            try:
+                last_date = datetime.date.fromisoformat(last_active_str)
+                diff = (today - last_date).days
+
+                # User missed 1 or more days
+                if diff > 1:
+                    missed_days = diff - 1
+                    rescues_used = 0
+                    for _ in range(missed_days):
+                        if s_data.get("freezes_remaining", 0) > 0:
+                            s_data["freezes_remaining"] -= 1
+                            s_data["total_rescues_used"] = s_data.get("total_rescues_used", 0) + 1
+                            rescues_used += 1
+                        else:
+                            s_data["is_alive"] = False
+                            s_data["current_streak"] = 0
+                            break
+
+                    if rescues_used > 0 and s_data.get("is_alive", True):
+                        if hasattr(self, "tray_icon") and self.tray_icon:
+                            self.tray_icon.showMessage(
+                                "🛡️ تم إنقاذ الستريك الخاص بك!",
+                                f"تم استخدام {rescues_used} من إنقاذات الشهر وحماية الستريك من الموت! متبقي {s_data['freezes_remaining']} إنقاذات.",
+                                QSystemTrayIcon.Information,
+                                7000
+                            )
+            except Exception as e:
+                print(f"Error checking streak logic: {e}")
+
+        self.config["streak_data"] = s_data
+        self.cfg_mgr.save_config()
+        self.update_streak_ui()
+
+    def record_streak_activity(self):
+        s_data = self.config.get("streak_data", {})
+        today_str = datetime.date.today().isoformat()
+        current_month_str = datetime.date.today().strftime("%Y-%m")
+
+        if s_data.get("current_month") != current_month_str:
+            s_data["current_month"] = current_month_str
+            s_data["freezes_remaining"] = 3
+
+        if s_data.get("last_active_date") != today_str:
+            if s_data.get("is_alive", True) and s_data.get("current_streak", 0) > 0:
+                s_data["current_streak"] += 1
+            else:
+                s_data["current_streak"] = 1
+                s_data["is_alive"] = True
+
+            s_data["last_active_date"] = today_str
+            self.config["streak_data"] = s_data
+            self.cfg_mgr.save_config()
+            self.update_streak_ui()
+
+            if hasattr(self, "tray_icon") and self.tray_icon:
+                self.tray_icon.showMessage(
+                    "🔥 الستريك مشتعل!",
+                    f"أحسنت! وصل الستريك الخاص بك إلى {s_data['current_streak']} أيام متتالية 🚀",
+                    QSystemTrayIcon.Information,
+                    5000
+                )
+
+    def update_streak_ui(self):
+        if not hasattr(self, "lbl_streak_val"):
+            return
+
+        s_data = self.config.get("streak_data", {})
+        is_alive = s_data.get("is_alive", True)
+        count = s_data.get("current_streak", 0)
+        freezes = s_data.get("freezes_remaining", 3)
+
+        if is_alive and count > 0:
+            icon_file = "streakfirethefireisfiringthestreakisstillgoinglogo.png"
+            title_text = f"{count} يوم متتالي 🔥"
+            border_color = "#F97316"
+            bg_color = "rgba(249, 115, 22, 0.12)"
+            tooltip_msg = f"🔥 الستريك مشتعل! ({count} يوم متتالي)\n🛡️ متبقي {freezes} إنقاذات شهرية"
+        else:
+            icon_file = "deadstreakfirelogo.png"
+            title_text = "0 يوم (منتهي 💀)"
+            border_color = "#64748B"
+            bg_color = "rgba(100, 116, 139, 0.10)"
+            tooltip_msg = f"💀 الستريك منتهي!\nأنجز 15 دقيقة تعلم اليوم لإعادة إشعال النار 🔥\n🛡️ متبقي {freezes} إنقاذات شهرية"
+
+        asset_p = get_asset_path(icon_file)
+        if asset_p and os.path.exists(asset_p):
+            pix = QPixmap(asset_p).scaled(QSize(34, 34), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.lbl_streak_icon.setPixmap(pix)
+            if hasattr(self, "lbl_top_streak_icon"):
+                pix_top = QPixmap(asset_p).scaled(QSize(22, 22), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.lbl_top_streak_icon.setPixmap(pix_top)
+
+        self.lbl_streak_val.setText(f"{count} أيام")
+        self.lbl_streak_freezes.setText(f"🛡️ {freezes}/3 إنقاذات متبقية")
+
+        if hasattr(self, "lbl_top_streak_text"):
+            self.lbl_top_streak_text.setText(title_text)
+            self.card_top_streak.setToolTip(tooltip_msg)
+            self.card_top_streak.setStyleSheet(f"""
+                QFrame {{
+                    background: {bg_color};
+                    border: 1.5px solid {border_color};
+                    border-radius: 12px;
+                    padding: 4px 12px;
+                }}
+            """)
 
     def test_eye_rest_overlay(self):
         if not getattr(self, "_eye_rest_overlay_open", False):
