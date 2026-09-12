@@ -437,3 +437,128 @@ class PushupsOverlayWindow(ExerciseOverlayWindow):
     def __init__(self, audio_mgr=None, on_finish_callback=None):
         super().__init__(exercise_info=EXERCISES_LIST[0], audio_mgr=audio_mgr, on_finish_callback=on_finish_callback)
 
+
+class PrayerOverlayWindow(QWidget):
+    """Full-screen prayer break reminder overlay (5-minute spiritual break)."""
+    def __init__(self, prayer_name, audio_mgr=None, on_finish_callback=None):
+        super().__init__()
+        self.prayer_name = prayer_name
+        self.audio_mgr = audio_mgr
+        self.on_finish_callback = on_finish_callback
+        self.seconds_left = 300  # 5 minutes
+
+        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
+        self.showFullScreen()
+        self.setup_ui()
+
+        if self.audio_mgr:
+            self.audio_mgr.play_loop_alarm()
+
+        from PySide6.QtCore import QTimer
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_countdown)
+        self.timer.start(1000)
+
+    def setup_ui(self):
+        self.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                           stop:0 #062016, stop:0.5 #064E3B, stop:1 #047857);
+                color: #FFFFFF;
+                font-family: 'Madika Arabic TRIAL', 'Segoe UI', Tahoma, sans-serif;
+            }
+            QFrame#Card {
+                background-color: rgba(6, 32, 22, 0.96);
+                border: 2px solid #10B981;
+                border-radius: 28px;
+                padding: 45px;
+            }
+            QLabel#HeaderTitle {
+                font-size: 38px;
+                font-weight: bold;
+                color: #34D399;
+            }
+            QLabel#SubTitle {
+                font-size: 22px;
+                color: #D1FAE5;
+                line-height: 1.5;
+            }
+            QPushButton#ActionBtn {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #10B981, stop:1 #059669);
+                color: white;
+                font-size: 22px;
+                font-weight: bold;
+                border-radius: 18px;
+                padding: 18px 45px;
+                border: none;
+            }
+            QPushButton#ActionBtn:hover {
+                background: #059669;
+            }
+        """)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setAlignment(Qt.AlignCenter)
+
+        card = QFrame()
+        card.setObjectName("Card")
+        card.setFixedWidth(720)
+
+        card_layout = QVBoxLayout(card)
+        card_layout.setAlignment(Qt.AlignCenter)
+        card_layout.setSpacing(24)
+
+        pix = get_tinted_pixmap("clocklogo.png", "#34D399", QSize(100, 100))
+        if not pix.isNull():
+            img_lbl = QLabel()
+            img_lbl.setPixmap(pix)
+            img_lbl.setAlignment(Qt.AlignCenter)
+            card_layout.addWidget(img_lbl)
+
+        title = QLabel(f"🕌 حانت الآن صلاة {self.prayer_name}")
+        title.setObjectName("HeaderTitle")
+        title.setAlignment(Qt.AlignCenter)
+
+        subtitle = QLabel("تم حظر جميع الألعاب والمشتتات لمدة 5 دقائق لأداء الصلاة خشوعاً وحضوراً.")
+        subtitle.setObjectName("SubTitle")
+        subtitle.setWordWrap(True)
+        subtitle.setAlignment(Qt.AlignCenter)
+
+        self.lbl_countdown = QLabel("المتبقي لاستئناف العمل: 05:00")
+        self.lbl_countdown.setStyleSheet("font-size: 20px; font-weight: bold; color: #F59E0B;")
+        self.lbl_countdown.setAlignment(Qt.AlignCenter)
+
+        self.btn_finish = QPushButton("تقبّل الله (إغلاق التنبيه) 🕌")
+        self.btn_finish.setObjectName("ActionBtn")
+        self.btn_finish.setCursor(Qt.PointingHandCursor)
+        self.btn_finish.clicked.connect(self.finish_action)
+
+        card_layout.addWidget(title)
+        card_layout.addWidget(subtitle)
+        card_layout.addWidget(self.lbl_countdown)
+        card_layout.addWidget(self.btn_finish)
+
+        main_layout.addWidget(card)
+
+    def update_countdown(self):
+        if self.seconds_left > 0:
+            self.seconds_left -= 1
+            m = self.seconds_left // 60
+            s = self.seconds_left % 60
+            self.lbl_countdown.setText(f"المتبقي لاستئناف العمل: {m:02d}:{s:02d}")
+        else:
+            self.lbl_countdown.setText("انتهت استراحة الصلاة! تقبل الله طاعتكم 🤲")
+
+    def finish_action(self):
+        if self.audio_mgr:
+            self.audio_mgr.stop_alarm()
+        self.close()
+
+    def closeEvent(self, event):
+        if self.audio_mgr:
+            self.audio_mgr.stop_alarm()
+        if self.on_finish_callback:
+            self.on_finish_callback("prayer")
+        self.on_finish_callback = None
+        super().closeEvent(event)
+

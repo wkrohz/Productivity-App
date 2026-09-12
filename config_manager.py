@@ -29,7 +29,30 @@ DEFAULT_CONFIG = {
     "unlocked_badges": [],
     "weekly_history": {},
     "manual_session_active": False,
-    "manual_session_end_time": ""
+    "manual_session_end_time": "",
+    "manual_session_is_strict": False,
+    "portfolio_folders": [
+        {
+            "id": "folder_default_1",
+            "title": "شهادات الدوارات والتعلم",
+            "icon": "rocketlogo.png",
+            "items": []
+        }
+    ],
+    "prayer_times": {
+        "enabled": True,
+        "times": {
+            "الفجر": "04:45",
+            "الظهر": "12:15",
+            "العصر": "15:35",
+            "المغرب": "18:10",
+            "العشاء": "19:40"
+        }
+    },
+    "quick_launch": {
+        "apps": ["code.exe"],
+        "urls": ["https://www.youtube.com"]
+    }
 }
 
 class ConfigManager:
