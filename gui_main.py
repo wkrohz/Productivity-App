@@ -1594,6 +1594,134 @@ class MainWindow(QMainWindow):
         self.cfg_mgr.save_config()
         self.reload_analytics_ui()
 
+    def reload_analytics_ui(self):
+        if not hasattr(self, 'lbl_user_score_value'):
+            return
+
+        score = self.config.get("user_score", 0)
+        self.lbl_user_score_value.setText(f"{score} نقطة")
+
+        # Determine level
+        if score < 50:
+            level_str = "المستوى 1: مبتدئ نشيط 🌱"
+        elif score < 120:
+            level_str = "المستوى 2: منجز متحفز 🔥"
+        elif score < 250:
+            level_str = "المستوى 3: بطل الإنتاجية ⚡"
+        elif score < 500:
+            level_str = "المستوى 4: أسد التركيز 🦁"
+        else:
+            level_str = "المستوى 5: أسطورة الإنتاجية 👑"
+
+        if hasattr(self, 'lbl_level_badge'):
+            self.lbl_level_badge.setText(level_str)
+
+        # Populate Weekly Bars Visualization
+        if hasattr(self, 'weekly_bars_layout'):
+            while self.weekly_bars_layout.count():
+                child = self.weekly_bars_layout.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+
+            today = datetime.date.today()
+            history = self.config.get("weekly_history", {})
+            days_arabic = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+            
+            max_mins = 1
+            daily_data = []
+
+            for i in range(6, -1, -1):
+                d = today - datetime.timedelta(days=i)
+                d_str = d.isoformat()
+                day_name = days_arabic[d.weekday()]
+                
+                if d_str == today.isoformat():
+                    mins = self.config.get("daily_stats", {}).get("learning_minutes", 0)
+                else:
+                    mins = history.get(d_str, {}).get("learning_minutes", 0)
+
+                max_mins = max(max_mins, mins)
+                daily_data.append((day_name, mins, d_str == today.isoformat()))
+
+            best_day = max(daily_data, key=lambda x: x[1])
+            if hasattr(self, 'lbl_best_day'):
+                if best_day[1] > 0:
+                    self.lbl_best_day.setText(f"🏆 أفضل يوم إنتاجية هذا الأسبوع: {best_day[0]} ({best_day[1]} دقيقة تعلم)")
+                else:
+                    self.lbl_best_day.setText("🏆 حافظ على استمراريتك في التعلم هذا الأسبوع لتحقق إنجازك!")
+
+            for day_name, mins, is_today in daily_data:
+                col = QVBoxLayout()
+                col.setSpacing(6)
+                col.setAlignment(Qt.AlignBottom)
+
+                height_factor = max(30, int((mins / max_mins) * 110))
+                bar_frame = QFrame()
+                bar_frame.setFixedWidth(38)
+                bar_frame.setFixedHeight(height_factor)
+                
+                if is_today:
+                    bar_frame.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #10B981, stop:1 #059669); border-radius: 8px;")
+                else:
+                    bar_frame.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0284C7, stop:1 #0369A1); border-radius: 8px;")
+
+                lbl_val = QLabel(f"{mins}م")
+                lbl_val.setAlignment(Qt.AlignCenter)
+                lbl_val.setStyleSheet("font-size: 11px; font-weight: bold; color: #94A3B8;")
+
+                lbl_day = QLabel(day_name)
+                lbl_day.setAlignment(Qt.AlignCenter)
+                lbl_day.setStyleSheet("font-size: 12px; font-weight: bold; color: " + ("#10B981;" if is_today else "#F8FAFC;"))
+
+                col.addWidget(lbl_val, 0, Qt.AlignCenter)
+                col.addWidget(bar_frame, 0, Qt.AlignCenter)
+                col.addWidget(lbl_day, 0, Qt.AlignCenter)
+
+                self.weekly_bars_layout.addLayout(col)
+
+        # Populate Badges Gallery
+        if hasattr(self, 'badges_grid'):
+            while self.badges_grid.count():
+                child = self.badges_grid.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+
+            unlocked = self.config.get("unlocked_badges", [])
+
+            all_badges = [
+                ("b_water_1", "💧 مستكشف الهيدرات", "شرب 3 أكواب ماء"),
+                ("b_pushups_1", "🏋️ بطل التمارين", "إنجاز 15 ضغطة"),
+                ("b_learn_1", "🎓 طالب التركيز", "60 دقيقة تعلم"),
+                ("b_tasks_1", "📋 صائد المهام", "إكمال 3 مهام"),
+                ("b_score_100", "🏆 الأسطورة", "جمع 100 نقطة"),
+            ]
+
+            for b_id, title_b, desc_b in all_badges:
+                b_card = QFrame()
+                b_layout = QVBoxLayout(b_card)
+                b_layout.setContentsMargins(10, 10, 10, 10)
+                b_layout.setSpacing(4)
+                
+                is_unlocked = b_id in unlocked
+                if is_unlocked:
+                    b_card.setStyleSheet("background-color: rgba(16, 185, 129, 0.12); border: 1px solid #10B981; border-radius: 12px;")
+                else:
+                    b_card.setStyleSheet("background-color: #0B0F19; border: 1px solid #1F293D; border-radius: 12px; opacity: 0.6;")
+
+                lbl_t = QLabel(title_b)
+                lbl_t.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {'#10B981' if is_unlocked else '#64748B'};")
+                lbl_d = QLabel(desc_b)
+                lbl_d.setStyleSheet("font-size: 11px; color: #94A3B8;")
+
+                lbl_st = QLabel("تم الفتح ✅" if is_unlocked else "مغلق 🔒")
+                lbl_st.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {'#10B981' if is_unlocked else '#64748B'};")
+
+                b_layout.addWidget(lbl_t)
+                b_layout.addWidget(lbl_d)
+                b_layout.addWidget(lbl_st)
+
+                self.badges_grid.addWidget(b_card)
+
     def handle_overlay_finish(self, overlay_type):
         if overlay_type == "water":
             self._water_overlay_open = False
