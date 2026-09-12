@@ -1,3 +1,16 @@
+def open_url_in_default_browser(url):
+    u = url.strip()
+    if not (u.startswith("http://") or u.startswith("https://")):
+        u = "https://" + u
+    try:
+        webbrowser.open(u, new=2)
+    except Exception as e:
+        print("webbrowser open error:", e)
+    try:
+        os.system(f'start "" "{u}"')
+    except Exception as e:
+        print("os start error:", e)
+
 import sys
 import os
 import datetime
@@ -1417,17 +1430,27 @@ class MainWindow(QMainWindow):
         row_inputs.addWidget(self.txt_sched_name, 2)
         row_inputs.addWidget(QLabel(" نوع الموعد:"))
         row_inputs.addWidget(self.cmb_sched_type)
-        row_inputs.addWidget(QLabel("من:"))
+        row_inputs.addWidget(QLabel("وقت الموعد / من:"))
         row_inputs.addWidget(self.cmb_start_hour)
         row_inputs.addWidget(QLabel(":"))
         row_inputs.addWidget(self.cmb_start_min)
         row_inputs.addWidget(self.cmb_start_period)
         
-        row_inputs.addWidget(QLabel(" إلى:"))
+        self.lbl_to_text = QLabel(" إلى:")
+        row_inputs.addWidget(self.lbl_to_text)
         row_inputs.addWidget(self.cmb_end_hour)
         row_inputs.addWidget(QLabel(":"))
         row_inputs.addWidget(self.cmb_end_min)
         row_inputs.addWidget(self.cmb_end_period)
+
+        def toggle_end_time_visibility(idx):
+            is_reminder = (idx == 2)  # "تذكير بموعد فقط 🔔"
+            self.lbl_to_text.setVisible(not is_reminder)
+            self.cmb_end_hour.setVisible(not is_reminder)
+            self.cmb_end_min.setVisible(not is_reminder)
+            self.cmb_end_period.setVisible(not is_reminder)
+
+        self.cmb_sched_type.currentIndexChanged.connect(toggle_end_time_visibility)
 
         row_inputs.addWidget(btn_add_sched, 1)
 
@@ -1773,19 +1796,40 @@ class MainWindow(QMainWindow):
 
             start_12 = format_12h(item['start'])
             end_12 = format_12h(item['end'])
+            st_type = item.get('type', 'standard')
 
             lbl_name = QLabel(item['name'])
             lbl_name.setStyleSheet("font-size: 17px; font-weight: bold; color: #F8FAFC;")
             lbl_name.setWordWrap(True)
             lbl_name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
-            lbl_time = QLabel(f"من {start_12} إلى {end_12}")
-            lbl_time.setStyleSheet("font-size: 14px; color: #38BDF8; font-weight: bold;")
+            if st_type == 'reminder':
+                lbl_time = QLabel(f"🔔 التنبيه: {start_12}")
+                lbl_time.setStyleSheet("font-size: 14px; color: #F59E0B; font-weight: bold;")
+                row_widget.setStyleSheet("background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #261D09, stop:1 #140E04); border-right: 4px solid #F59E0B; border-radius: 12px;")
+                badge_text = "🔔 تذكير فقط"
+                badge_style = "background: rgba(245,158,11,0.15); color: #F59E0B; border: 1px solid rgba(245,158,11,0.4); font-size: 12px; font-weight: bold; border-radius: 8px; padding: 4px 10px;"
+            elif st_type == 'strict':
+                lbl_time = QLabel(f"🔒 من {start_12} إلى {end_12}")
+                lbl_time.setStyleSheet("font-size: 14px; color: #EF4444; font-weight: bold;")
+                row_widget.setStyleSheet("background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #2B0D11, stop:1 #140507); border-right: 4px solid #EF4444; border-radius: 12px;")
+                badge_text = "🔒 صارم إجباري"
+                badge_style = "background: rgba(239,68,68,0.15); color: #EF4444; border: 1px solid rgba(239,68,68,0.4); font-size: 12px; font-weight: bold; border-radius: 8px; padding: 4px 10px;"
+            else:
+                lbl_time = QLabel(f"⏱️ من {start_12} إلى {end_12}")
+                lbl_time.setStyleSheet("font-size: 14px; color: #38BDF8; font-weight: bold;")
+                row_widget.setStyleSheet("background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0A1628, stop:1 #060A12); border-right: 4px solid #38BDF8; border-radius: 12px;")
+                badge_text = "⏱️ تعلم عادي"
+                badge_style = "background: rgba(56,189,248,0.15); color: #38BDF8; border: 1px solid rgba(56,189,248,0.4); font-size: 12px; font-weight: bold; border-radius: 8px; padding: 4px 10px;"
+
+            lbl_badge = QLabel(badge_text)
+            lbl_badge.setStyleSheet(badge_style)
 
             text_vbox = QVBoxLayout()
             text_vbox.setSpacing(4)
             text_vbox.addWidget(lbl_name)
             text_vbox.addWidget(lbl_time)
+            text_vbox.addWidget(lbl_badge)
 
             btn_del = QPushButton()
             btn_del.setObjectName("IconTrashBtn")
@@ -2953,7 +2997,7 @@ class MainWindow(QMainWindow):
 
         for url in ql.get("urls", []):
             try:
-                webbrowser.open(url)
+                open_url_in_default_browser(url)
                 launched_count += 1
             except Exception as e:
                 print(f"Error opening url {url}: {e}")
@@ -2967,38 +3011,124 @@ class MainWindow(QMainWindow):
     def configure_quick_launch_dialog(self):
         dlg = QDialog(self)
         dlg.setWindowTitle("ضبط بيئة العمل السريعة (Quick Launch)")
-        dlg.setMinimumWidth(550)
+        dlg.setMinimumSize(600, 520)
         dlg.setStyleSheet("background-color: #0F172A; color: #F1F5F9; font-family: 'Segoe UI', sans-serif;")
 
         layout = QVBoxLayout(dlg)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        lbl_title = QLabel("🚀 ضبط التطبيقات والمواقع للعمل السريع")
+        lbl_title = QLabel("🚀 إدارة بيئة العمل السريعة (تطبيقات ومواقع)")
         lbl_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #C084FC;")
-        lbl_desc = QLabel("أدخل التطبيقات (مثل code.exe أو المسار الكامل) والمواقع التعليمية (مثل رابط الدورة أو يوتيوب) مفصولة بفاصلة:")
+        lbl_desc = QLabel("أضف التطبيقات والروابط التي تريد فتحها تلقائياً عند بدء العمل السريع بضغطة زر واحد:")
         lbl_desc.setStyleSheet("color: #94A3B8; font-size: 13px;")
-        lbl_desc.setWordWrap(True)
 
         layout.addWidget(lbl_title)
         layout.addWidget(lbl_desc)
 
         ql = self.config.get("quick_launch", {"apps": ["code.exe"], "urls": ["https://www.youtube.com"]})
+        current_apps = list(ql.get("apps", []))
+        current_urls = list(ql.get("urls", []))
 
-        lbl_apps = QLabel("التطبيقات (مفصولة بفاصلة):")
-        lbl_apps.setStyleSheet("font-weight: bold; color: #38BDF8;")
-        txt_apps = QLineEdit()
-        txt_apps.setText(", ".join(ql.get("apps", [])))
+        # ── Apps Section
+        apps_hdr = QHBoxLayout()
+        lbl_apps_t = QLabel("💻 التطبيقات المحددة:")
+        lbl_apps_t.setStyleSheet("font-weight: bold; color: #38BDF8; font-size: 15px;")
+        btn_add_app = QPushButton("➕ إضافة تطبيق جديد")
+        btn_add_app.setStyleSheet("background: rgba(56, 189, 248, 0.15); color: #38BDF8; font-weight: bold; border-radius: 8px; padding: 6px 12px;")
+        btn_add_app.setCursor(Qt.PointingHandCursor)
+        apps_hdr.addWidget(lbl_apps_t)
+        apps_hdr.addStretch()
+        apps_hdr.addWidget(btn_add_app)
+        layout.addLayout(apps_hdr)
 
-        lbl_urls = QLabel("المواقع والروابط (مفصولة بفاصلة):")
-        lbl_urls.setStyleSheet("font-weight: bold; color: #38BDF8;")
-        txt_urls = QLineEdit()
-        txt_urls.setText(", ".join(ql.get("urls", [])))
+        list_apps_w = QListWidget()
+        list_apps_w.setFixedHeight(120)
+        layout.addWidget(list_apps_w)
 
-        layout.addWidget(lbl_apps)
-        layout.addWidget(txt_apps)
-        layout.addWidget(lbl_urls)
-        layout.addWidget(txt_urls)
+        # ── Websites Section
+        urls_hdr = QHBoxLayout()
+        lbl_urls_t = QLabel("🌐 المواقع والروابط التعليمية:")
+        lbl_urls_t.setStyleSheet("font-weight: bold; color: #10B981; font-size: 15px;")
+        btn_add_url = QPushButton("➕ إضافة موقع / رابط جديد")
+        btn_add_url.setStyleSheet("background: rgba(16, 185, 129, 0.15); color: #10B981; font-weight: bold; border-radius: 8px; padding: 6px 12px;")
+        btn_add_url.setCursor(Qt.PointingHandCursor)
+        urls_hdr.addWidget(lbl_urls_t)
+        urls_hdr.addStretch()
+        urls_hdr.addWidget(btn_add_url)
+        layout.addLayout(urls_hdr)
+
+        list_urls_w = QListWidget()
+        list_urls_w.setFixedHeight(120)
+        layout.addWidget(list_urls_w)
+
+        def refresh_lists():
+            list_apps_w.clear()
+            list_urls_w.clear()
+
+            trash_pix = get_tinted_pixmap("trash.png", "#EF4444", QSize(16, 16))
+
+            for idx, a in enumerate(current_apps):
+                item = QListWidgetItem(list_apps_w)
+                rw = QWidget()
+                rl = QHBoxLayout(rw)
+                rl.setContentsMargins(10, 4, 10, 4)
+                lbl = QLabel(f"💻 {a}")
+                lbl.setStyleSheet("color: #E2E8F0; font-weight: 500;")
+                btn_del = QPushButton()
+                btn_del.setObjectName("IconTrashBtn")
+                btn_del.setFixedSize(28, 28)
+                if not trash_pix.isNull():
+                    btn_del.setIcon(QIcon(trash_pix))
+                btn_del.clicked.connect(lambda ch, i=idx: (current_apps.pop(i), refresh_lists()))
+                rl.addWidget(lbl, 1)
+                rl.addWidget(btn_del)
+                item.setSizeHint(rw.sizeHint())
+                list_apps_w.addItem(item)
+                list_apps_w.setItemWidget(item, rw)
+
+            for idx, u in enumerate(current_urls):
+                item = QListWidgetItem(list_urls_w)
+                rw = QWidget()
+                rl = QHBoxLayout(rw)
+                rl.setContentsMargins(10, 4, 10, 4)
+                lbl = QLabel(f"🌐 {u}")
+                lbl.setStyleSheet("color: #E2E8F0; font-weight: 500;")
+                btn_del = QPushButton()
+                btn_del.setObjectName("IconTrashBtn")
+                btn_del.setFixedSize(28, 28)
+                if not trash_pix.isNull():
+                    btn_del.setIcon(QIcon(trash_pix))
+                btn_del.clicked.connect(lambda ch, i=idx: (current_urls.pop(i), refresh_lists()))
+                rl.addWidget(lbl, 1)
+                rl.addWidget(btn_del)
+                item.setSizeHint(rw.sizeHint())
+                list_urls_w.addItem(item)
+                list_urls_w.setItemWidget(item, rw)
+
+        def on_add_app():
+            reply = QMessageBox.question(dlg, "إضافة تطبيق", "هل تريد تصفح الملفات لاختيار برنامج (.exe)؟", QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
+            if reply == QMessageBox.Yes:
+                fp, _ = QFileDialog.getOpenFileName(dlg, "اختر البرنامج التنفيذي", "", "Executables (*.exe)")
+                if fp:
+                    current_apps.append(fp)
+                    refresh_lists()
+            elif reply == QMessageBox.No:
+                text, ok = QInputDialog.getText(dlg, "إضافة تطبيق", "أدخل اسم البرنامج (مثل code.exe أو pycharm.exe):")
+                if ok and text.strip():
+                    current_apps.append(text.strip())
+                    refresh_lists()
+
+        def on_add_url():
+            url_text, ok = QInputDialog.getText(dlg, "إضافة موقع", "أدخل رابط الموقع (مثال: https://youtube.com/...):")
+            if ok and url_text.strip():
+                current_urls.append(url_text.strip())
+                refresh_lists()
+
+        btn_add_app.clicked.connect(on_add_app)
+        btn_add_url.clicked.connect(on_add_url)
+
+        refresh_lists()
 
         btn_box = QHBoxLayout()
         btn_save = QPushButton("حفظ الضبط")
@@ -3006,11 +3136,9 @@ class MainWindow(QMainWindow):
         btn_save.setCursor(Qt.PointingHandCursor)
 
         def save_ql():
-            apps_list = [a.strip() for a in txt_apps.text().split(",") if a.strip()]
-            urls_list = [u.strip() for u in txt_urls.text().split(",") if u.strip()]
-            self.config["quick_launch"] = {"apps": apps_list, "urls": urls_list}
+            self.config["quick_launch"] = {"apps": current_apps, "urls": current_urls}
             self.cfg_mgr.save_config()
-            QMessageBox.information(dlg, "تم الحفظ", "تم حفظ إعدادات العمل السريع بنجاح!")
+            QMessageBox.information(dlg, "تم الحفظ", "تم حفظ بيئة العمل السريعة بنجاح!")
             dlg.accept()
 
         btn_save.clicked.connect(save_ql)
@@ -3050,43 +3178,71 @@ class MainWindow(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
 
+        folders = self.config.get("portfolio_folders", [])
+        current_fid = getattr(self, "current_portfolio_folder_id", None)
+        active_folder = next((f for f in folders if f["id"] == current_fid), None) if current_fid else None
+
+        # ── Distinct Header Styling depending on Folder View vs Main View
         hdr_card = QFrame()
-        hdr_card.setStyleSheet("""
-            QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #1E1B4B, stop:0.5 #0F172A, stop:1 #0284C7);
-                border: 1px solid rgba(56, 189, 248, 0.25);
-                border-radius: 20px;
-            }
-        """)
+        if active_folder:
+            hdr_card.setStyleSheet("""
+                QFrame {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #064E3B, stop:0.5 #065F46, stop:1 #047857);
+                    border: 2px solid #34D399;
+                    border-radius: 20px;
+                }
+            """)
+        else:
+            hdr_card.setStyleSheet("""
+                QFrame {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #1E1B4B, stop:0.5 #0F172A, stop:1 #0284C7);
+                    border: 1px solid rgba(56, 189, 248, 0.25);
+                    border-radius: 20px;
+                }
+            """)
+
         hdr_row = QHBoxLayout(hdr_card)
         hdr_row.setContentsMargins(24, 20, 24, 20)
 
         title_box = QVBoxLayout()
         title_box.setSpacing(4)
-        t_lbl = QLabel("🏆 معرض الشهادات والإنجازات الشخصية")
-        t_lbl.setStyleSheet("font-size: 26px; font-weight: bold; color: #F1F5F9;")
-        d_lbl = QLabel("احفظ شهاداتك، إنجازاتك، ووثائق نجاحك في مجلدات منظمة لتبقى دائمًا فخورًا برحلتك!")
-        d_lbl.setStyleSheet("color: #94A3B8; font-size: 13px;")
-        title_box.addWidget(t_lbl)
-        title_box.addWidget(d_lbl)
+
+        if active_folder:
+            crumb_lbl = QLabel(f"📂 المعرض الرئيسي  ⬅️  📁 {active_folder.get('title')}")
+            crumb_lbl.setStyleSheet("font-size: 13px; font-weight: bold; color: #A7F3D0; letter-spacing: 0.5px;")
+            t_lbl = QLabel(f"📁 مجلد: {active_folder.get('title')}")
+            t_lbl.setStyleSheet("font-size: 26px; font-weight: bold; color: #FFFFFF;")
+            d_lbl = QLabel(f"تستعرض الآن المحتويات والشهادات المحفوظة داخل مجلد ({active_folder.get('title')})")
+            d_lbl.setStyleSheet("color: #D1FAE5; font-size: 13px;")
+            title_box.addWidget(crumb_lbl)
+            title_box.addWidget(t_lbl)
+            title_box.addWidget(d_lbl)
+        else:
+            t_lbl = QLabel("🏆 معرض الشهادات والإنجازات الشخصية")
+            t_lbl.setStyleSheet("font-size: 26px; font-weight: bold; color: #F1F5F9;")
+            d_lbl = QLabel("احفظ شهاداتك، إنجازاتك، ووثائق نجاحك في مجلدات منظمة لتبقى دائمًا فخورًا برحلتك!")
+            d_lbl.setStyleSheet("color: #94A3B8; font-size: 13px;")
+            title_box.addWidget(t_lbl)
+            title_box.addWidget(d_lbl)
 
         hdr_row.addLayout(title_box, 1)
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
-        if getattr(self, "current_portfolio_folder_id", None) is not None:
-            btn_back = QPushButton("⬅️ الرجوع للمجلدات الرئيسية")
-            btn_back.setStyleSheet("background: rgba(255,255,255,0.1); color: #E2E8F0; font-weight: bold; border-radius: 12px; padding: 10px 18px;")
+        if active_folder:
+            btn_back = QPushButton("⬅️ العودة إلى جميع المجلدات")
+            btn_back.setStyleSheet("background: rgba(0,0,0,0.3); color: #FFFFFF; font-weight: bold; border-radius: 12px; padding: 12px 20px; border: 1px solid #34D399;")
             btn_back.setCursor(Qt.PointingHandCursor)
             btn_back.clicked.connect(lambda: self._set_portfolio_folder(None))
             btn_row.addWidget(btn_back)
 
-            btn_add_item = QPushButton("🖼️ إضافة شهادة / صورة إنجاز")
-            btn_add_item.setObjectName("PrimaryBtn")
+            btn_add_item = QPushButton("🖼️ إضافة شهادة / صورة للمجلد")
+            btn_add_item.setStyleSheet("background: #10B981; color: white; font-weight: bold; border-radius: 12px; padding: 12px 20px; border: none;")
             btn_add_item.setCursor(Qt.PointingHandCursor)
-            btn_add_item.clicked.connect(lambda: self.add_portfolio_item(self.current_portfolio_folder_id))
+            btn_add_item.clicked.connect(lambda: self.add_portfolio_item(active_folder['id']))
             btn_row.addWidget(btn_add_item)
         else:
             btn_add_folder = QPushButton("📁 أضف مجلد إنجاز جديد")
@@ -3098,12 +3254,9 @@ class MainWindow(QMainWindow):
         hdr_row.addLayout(btn_row)
         self.portfolio_layout.addWidget(hdr_card)
 
-        folders = self.config.get("portfolio_folders", [])
-
-        if getattr(self, "current_portfolio_folder_id", None) is None:
+        if not active_folder:
             sec_title = QLabel("📂 المجلدات الرئيسية للإنجازات:")
             sec_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #38BDF8;")
-            self.portfolio_layout.addWidget(sec_title)
 
             grid = QGridLayout()
             grid.setSpacing(16)
