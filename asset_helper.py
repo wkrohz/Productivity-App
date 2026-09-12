@@ -56,3 +56,13 @@ def get_tinted_pixmap(filename, color_hex="#FFFFFF", target_size=None):
     painter.end()
 
     return tinted
+
+def get_tinted_icon(filename, color_hex="#FFFFFF", target_size=None):
+    """
+    Loads a PNG asset, dynamically tints it to color_hex, and returns a QIcon.
+    """
+    from PySide6.QtGui import QIcon
+    pix = get_tinted_pixmap(filename, color_hex, target_size)
+    if pix.isNull():
+        return QIcon()
+    return QIcon(pix)

@@ -14,7 +14,7 @@ from PySide6.QtGui import QFont, QIcon, QPixmap, QColor, QAction
 from config_manager import ConfigManager
 from audio_manager import AudioManager
 from app_blocker import AppBlocker
-from asset_helper import get_asset_path, get_tinted_pixmap
+from asset_helper import get_asset_path, get_tinted_pixmap, get_tinted_icon
 from overlays import WaterOverlayWindow, PushupsOverlayWindow, StartScheduleOverlayWindow, ExerciseOverlayWindow, EXERCISES_LIST
 
 MOTIVATIONAL_STUDY_QUOTES = [
@@ -551,10 +551,10 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(nav_section)
         sidebar_layout.addSpacing(4)
 
-        self.btn_nav_dash = self.create_nav_button(" 🏠  الرئيسية", "homelogo.png", 0)
-        self.btn_nav_tasks = self.create_nav_button(" ✅  المهام اليومية", "bullseye-arrowlogo.png", 1)
-        self.btn_nav_badge = self.create_nav_button(" 🏆  الإنجازات والأوسمة", "bullseye-arrowlogo.png", 2)
-        self.btn_nav_sched = self.create_nav_button(" 📅  جدول التعلم", "calendarlogo.png", 3)
+        self.btn_nav_dash = self.create_nav_button("الرئيسية", "homelogo.png", 0)
+        self.btn_nav_tasks = self.create_nav_button("المهام اليومية", "bullseye-arrowlogo.png", 1)
+        self.btn_nav_badge = self.create_nav_button("الإنجازات والأوسمة", "rocketlogo.png", 2)
+        self.btn_nav_sched = self.create_nav_button("جدول التعلم", "calendarlogo.png", 3)
         sidebar_layout.addWidget(self.btn_nav_dash)
         sidebar_layout.addWidget(self.btn_nav_tasks)
         sidebar_layout.addWidget(self.btn_nav_badge)
@@ -566,9 +566,9 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(block_section)
         sidebar_layout.addSpacing(4)
 
-        self.btn_nav_block = self.create_nav_button(" 🚫  التطبيقات الممنوعة", "forbiddenapps.png", 4)
-        self.btn_nav_web_block = self.create_nav_button(" 🌐  المواقع المحظورة", "forbiddenapps.png", 5)
-        self.btn_nav_sets = self.create_nav_button(" ⚙️  الإعدادات", "settingslogo.png", 6)
+        self.btn_nav_block = self.create_nav_button("التطبيقات الممنوعة", "forbiddenapps.png", 4)
+        self.btn_nav_web_block = self.create_nav_button("المواقع المحظورة", "forbiddenapps.png", 5)
+        self.btn_nav_sets = self.create_nav_button("الإعدادات", "settingslogo.png", 6)
         sidebar_layout.addWidget(self.btn_nav_block)
         sidebar_layout.addWidget(self.btn_nav_web_block)
         sidebar_layout.addWidget(self.btn_nav_sets)
@@ -612,10 +612,14 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(content_widget)
 
     def create_nav_button(self, text, icon_filename, page_index):
-        btn = QPushButton(text)
+        btn = QPushButton(f"  {text}")
         btn.setObjectName("NavBtn")
         btn.setCursor(Qt.PointingHandCursor)
         btn.setMinimumHeight(46)
+        btn._icon_filename = icon_filename
+        color = "#38BDF8" if page_index == 0 else "#64748B"
+        btn.setIcon(get_tinted_icon(icon_filename, color, QSize(20, 20)))
+        btn.setIconSize(QSize(20, 20))
         btn.clicked.connect(lambda: self.switch_page(page_index))
         return btn
 
@@ -623,8 +627,12 @@ class MainWindow(QMainWindow):
         self.pages.setCurrentIndex(index)
         nav_btns = [self.btn_nav_dash, self.btn_nav_tasks, self.btn_nav_badge, self.btn_nav_sched, self.btn_nav_block, self.btn_nav_web_block, self.btn_nav_sets]
         for i, btn in enumerate(nav_btns):
-            btn.setProperty("active", "true" if i == index else "false")
+            is_active = (i == index)
+            btn.setProperty("active", "true" if is_active else "false")
             btn.setStyle(btn.style())
+            if hasattr(btn, '_icon_filename') and btn._icon_filename:
+                color = "#38BDF8" if is_active else "#64748B"
+                btn.setIcon(get_tinted_icon(btn._icon_filename, color, QSize(20, 20)))
 
     # Page 1: Dashboard
     def create_dashboard_page(self):
@@ -674,13 +682,17 @@ class MainWindow(QMainWindow):
         btn_box.setSpacing(10)
         btn_box.setAlignment(Qt.AlignCenter)
 
-        self.btn_start_learning = QPushButton("▶  بدء جلسة التعلم")
+        self.btn_start_learning = QPushButton("  بدء جلسة التعلم")
+        self.btn_start_learning.setIcon(get_tinted_icon("playlogonotpauselogolikeinyoutube.png", "#FFFFFF", QSize(18, 18)))
+        self.btn_start_learning.setIconSize(QSize(18, 18))
         self.btn_start_learning.setObjectName("PrimaryBtn")
         self.btn_start_learning.setCursor(Qt.PointingHandCursor)
         self.btn_start_learning.setMinimumWidth(170)
         self.btn_start_learning.clicked.connect(self.start_manual_session)
 
-        self.btn_finish_learning = QPushButton("⏹  إنهاء الجلسة")
+        self.btn_finish_learning = QPushButton("  إنهاء الجلسة")
+        self.btn_finish_learning.setIcon(get_tinted_icon("pauselogo.png", "#FFFFFF", QSize(18, 18)))
+        self.btn_finish_learning.setIconSize(QSize(18, 18))
         self.btn_finish_learning.setObjectName("FinishBtn")
         self.btn_finish_learning.setCursor(Qt.PointingHandCursor)
         self.btn_finish_learning.setMinimumWidth(155)
@@ -718,10 +730,11 @@ class MainWindow(QMainWindow):
             card_l.setContentsMargins(20, 18, 20, 18)
             card_l.setSpacing(8)
 
-            # Icon + Title row
             top_row = QHBoxLayout()
-            ic_lbl = QLabel(emoji)
-            ic_lbl.setStyleSheet(f"font-size: 28px;")
+            top_row.setSpacing(10)
+            ic_lbl = QLabel()
+            pix = get_tinted_pixmap(icon_file, color, QSize(26, 26))
+            ic_lbl.setPixmap(pix)
             title_lbl = QLabel(title)
             title_lbl.setStyleSheet(f"font-size: 13px; color: #64748B; font-weight: 600;")
             top_row.addWidget(ic_lbl)
@@ -1675,7 +1688,7 @@ class MainWindow(QMainWindow):
     # Reload Schedules List
     def reload_schedules_list(self):
         self.list_schedules.clear()
-        trash_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(22, 22))
+        trash_pix = get_tinted_pixmap("trash.png", "#EF4444", QSize(22, 22))
         if trash_pix.isNull():
             trash_pix = get_tinted_pixmap("pauselogo.png", "#EF4444", QSize(22, 22))
 
@@ -1804,7 +1817,7 @@ class MainWindow(QMainWindow):
             return
         
         forb_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(24, 24))
-        trash_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(22, 22))
+        trash_pix = get_tinted_pixmap("trash.png", "#EF4444", QSize(22, 22))
 
         for app in filtered:
             orig_idx = all_apps.index(app)
@@ -1895,7 +1908,7 @@ class MainWindow(QMainWindow):
             self.list_blocked_websites.setItemWidget(item, row_widget)
             return
 
-        trash_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(22, 22))
+        trash_pix = get_tinted_pixmap("trash.png", "#EF4444", QSize(22, 22))
 
         for site in filtered:
             orig_idx = all_sites.index(site)
@@ -2160,7 +2173,7 @@ class MainWindow(QMainWindow):
                 target_list_widget.setItemWidget(item, row_widget)
                 return
 
-            trash_pix = get_tinted_pixmap("forbiddenapps.png", "#EF4444", QSize(22 if is_spacious else 20, 22 if is_spacious else 20))
+            trash_pix = get_tinted_pixmap("trash.png", "#EF4444", QSize(22 if is_spacious else 20, 22 if is_spacious else 20))
 
             for orig_idx, task in filtered_tasks:
                 item = QListWidgetItem(target_list_widget)

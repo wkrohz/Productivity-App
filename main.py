@@ -56,23 +56,31 @@ def restore_existing_window(window):
 # ────────────────────────────────────────────────────────────────────────────
 
 def register_in_windows_search():
-    """Automatically registers shortcut in Windows Start Menu so Windows Search finds it."""
+    """Automatically registers shortcuts in Windows Start Menu so Windows Search finds it."""
     try:
         start_menu_dir = os.path.join(os.environ.get('APPDATA', ''), r'Microsoft\Windows\Start Menu\Programs')
-        shortcut_path = os.path.join(start_menu_dir, "انتاجيتي.lnk")
-
         if getattr(sys, 'frozen', False):
             target_exe = sys.executable
         else:
             target_exe = os.path.abspath(sys.argv[0])
 
         shell = win32com.client.Dispatch("WScript.Shell")
-        shortcut = shell.CreateShortCut(shortcut_path)
-        shortcut.TargetPath = target_exe
-        shortcut.WorkingDirectory = os.path.dirname(target_exe)
-        shortcut.IconLocation = target_exe
-        shortcut.Description = "انتاجيتي - مركز الإنتاجية الذكي لتنظيم الوقت وحظر التطبيقات"
-        shortcut.save()
+        
+        # Shortcuts to create so search finds it by English or Arabic query
+        shortcuts = [
+            ("ProductivityHub.lnk", "Productivity Hub - مركز الإنتاجية الذكي"),
+            ("Intajiyati.lnk", "تطبيق انتاجيتي"),
+            ("انتاجيتي.lnk", "تطبيق انتاجيتي - مركز الإنتاجية الذكي")
+        ]
+
+        for link_name, desc in shortcuts:
+            shortcut_path = os.path.join(start_menu_dir, link_name)
+            shortcut = shell.CreateShortCut(shortcut_path)
+            shortcut.TargetPath = target_exe
+            shortcut.WorkingDirectory = os.path.dirname(target_exe)
+            shortcut.IconLocation = target_exe
+            shortcut.Description = desc
+            shortcut.save()
     except Exception as e:
         print("Shortcut creation notice:", e)
 

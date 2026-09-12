@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='\u0627\u0646\u062a\u0627\u062c\u064a\u062a\u064a',
+    name='ProductivityHub',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
