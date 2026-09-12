@@ -6,9 +6,9 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QListWidget, QListWidgetItem, QLineEdit, QComboBox, QCheckBox,
     QStackedWidget, QFrame, QDialog, QMessageBox, QSystemTrayIcon, QMenu, QSizePolicy, QProgressBar,
-    QGridLayout, QScrollArea
+    QGridLayout, QScrollArea, QGraphicsDropShadowEffect
 )
-from PySide6.QtCore import Qt, QTime, QTimer, QSize
+from PySide6.QtCore import Qt, QTime, QTimer, QSize, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QIcon, QPixmap, QColor, QAction
 
 from config_manager import ConfigManager
@@ -143,8 +143,8 @@ class MainWindow(QMainWindow):
         self.current_badge_filter = "all"
 
         self.setWindowTitle("مركز الإنتاجية الذكي | Productivity Hub")
-        self.resize(1080, 740)
-        self.setMinimumSize(940, 660)
+        self.resize(1200, 820)
+        self.setMinimumSize(1000, 700)
 
         self.setup_styles()
         self.setup_ui()
@@ -159,244 +159,446 @@ class MainWindow(QMainWindow):
     def setup_styles(self):
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #090D16;
+                background-color: #060A12;
             }
             QWidget {
-                color: #F8FAFC;
-                font-family: 'Madika Arabic TRIAL', 'Segoe UI', Tahoma, sans-serif;
+                color: #F1F5F9;
+                font-family: 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
+                font-size: 14px;
             }
+
+            /* ═══ SIDEBAR ═══ */
             QFrame#Sidebar {
-                background-color: #0F172A;
-                border-right: 1px solid #1E293B;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #0A1628, stop:0.5 #0D1B35, stop:1 #060A12);
+                border-right: 1px solid rgba(56, 189, 248, 0.12);
             }
+
+            /* ═══ NAV BUTTONS ═══ */
             QPushButton#NavBtn {
                 background-color: transparent;
-                color: #94A3B8;
-                font-size: 17px;
+                color: #64748B;
+                font-size: 15px;
                 font-weight: bold;
-                text-align: left;
-                padding: 14px 18px;
-                border-radius: 12px;
+                text-align: right;
+                padding: 13px 16px;
+                border-radius: 14px;
                 border: none;
+                margin: 1px 0;
             }
             QPushButton#NavBtn:hover {
-                background-color: #1E293B;
-                color: #38BDF8;
+                background: rgba(56, 189, 248, 0.08);
+                color: #BAE6FD;
+                border: 1px solid rgba(56, 189, 248, 0.2);
             }
             QPushButton#NavBtn[active="true"] {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #0369A1);
-                color: #FFFFFF;
-                border-left: 4px solid #38BDF8;
-            }
-            QFrame#Card {
-                background-color: #111827;
-                border: 1px solid #1F293D;
-                border-radius: 20px;
-                padding: 22px;
-            }
-            QLabel#CardTitle {
-                font-size: 22px;
-                font-weight: bold;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(2, 132, 199, 0.35), stop:1 rgba(14, 165, 233, 0.15));
                 color: #38BDF8;
-            }
-            QLabel#StatValue {
-                font-size: 36px;
-                font-weight: bold;
-                color: #38BDF8;
-            }
-            QPushButton#PrimaryBtn {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #0369A1);
-                color: white;
-                font-size: 17px;
-                font-weight: bold;
-                padding: 12px 24px;
-                border-radius: 12px;
-                border: 1px solid #38BDF8;
-            }
-            QPushButton#PrimaryBtn:hover {
-                background: #0284C7;
-            }
-            QPushButton#PresetBtn {
-                background: rgba(14, 165, 233, 0.12);
                 border: 1px solid rgba(56, 189, 248, 0.4);
-                color: #38BDF8;
-                font-size: 16px;
+                border-right: 3px solid #38BDF8;
+            }
+
+            /* ═══ CARDS ═══ */
+            QFrame#Card {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #111C2E, stop:1 #0C1520);
+                border: 1px solid rgba(56, 189, 248, 0.1);
+                border-radius: 20px;
+            }
+            QFrame#Card:hover {
+                border: 1px solid rgba(56, 189, 248, 0.25);
+            }
+            QFrame#GlowCard {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #131E32, stop:0.5 #0F1A2B, stop:1 #0A1220);
+                border: 1px solid rgba(99, 102, 241, 0.3);
+                border-radius: 24px;
+            }
+            QFrame#StatCard {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #0F1E30, stop:1 #091525);
+                border: 1px solid rgba(56, 189, 248, 0.15);
+                border-radius: 18px;
+            }
+            QFrame#DangerCard {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #1A0E10, stop:1 #0D0A0A);
+                border: 1px solid rgba(239, 68, 68, 0.3);
+                border-radius: 20px;
+            }
+
+            /* ═══ LABELS ═══ */
+            QLabel#CardTitle {
+                font-size: 20px;
                 font-weight: bold;
-                padding: 12px 18px;
-                border-radius: 12px;
+                color: #38BDF8;
             }
-            QPushButton#PresetBtn:hover {
-                background: #0284C7;
-                color: white;
-                border-color: #38BDF8;
+            QLabel#PageTitle {
+                font-size: 26px;
+                font-weight: bold;
+                color: #F1F5F9;
             }
-            QPushButton#FinishBtn {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #DC2626, stop:1 #991B1B);
-                color: white;
+            QLabel#SectionTitle {
                 font-size: 18px;
                 font-weight: bold;
-                padding: 14px 28px;
-                border-radius: 12px;
-                border: 1px solid #EF4444;
+                color: #E2E8F0;
+            }
+            QLabel#StatValue {
+                font-size: 38px;
+                font-weight: bold;
+                color: #38BDF8;
+            }
+            QLabel#MutedText {
+                color: #64748B;
+                font-size: 13px;
+            }
+
+            /* ═══ PRIMARY BUTTONS ═══ */
+            QPushButton#PrimaryBtn {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0369A1, stop:1 #0284C7);
+                color: white;
+                font-size: 15px;
+                font-weight: bold;
+                padding: 12px 22px;
+                border-radius: 14px;
+                border: 1px solid rgba(56, 189, 248, 0.5);
+            }
+            QPushButton#PrimaryBtn:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0284C7, stop:1 #38BDF8);
+                border-color: #38BDF8;
+            }
+            QPushButton#PrimaryBtn:pressed {
+                background: #0369A1;
+            }
+
+            /* ═══ PRESET BUTTONS ═══ */
+            QPushButton#PresetBtn {
+                background: rgba(14, 165, 233, 0.08);
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                color: #7DD3FC;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 11px 16px;
+                border-radius: 14px;
+            }
+            QPushButton#PresetBtn:hover {
+                background: rgba(14, 165, 233, 0.2);
+                color: #E0F2FE;
+                border-color: rgba(56, 189, 248, 0.6);
+            }
+            QPushButton#PresetBtn:pressed {
+                background: rgba(2, 132, 199, 0.3);
+            }
+
+            /* ═══ FINISH/DANGER BUTTONS ═══ */
+            QPushButton#FinishBtn {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #991B1B, stop:1 #DC2626);
+                color: white;
+                font-size: 15px;
+                font-weight: bold;
+                padding: 12px 22px;
+                border-radius: 14px;
+                border: 1px solid rgba(239, 68, 68, 0.5);
             }
             QPushButton#FinishBtn:hover {
-                background: #EF4444;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #DC2626, stop:1 #EF4444);
+                border-color: #EF4444;
             }
+
+            /* ═══ ICON TRASH BUTTON ═══ */
             QPushButton#IconTrashBtn {
-                background-color: rgba(239, 68, 68, 0.15);
-                border: 1px solid rgba(239, 68, 68, 0.4);
-                border-radius: 10px;
+                background-color: rgba(239, 68, 68, 0.1);
+                border: 1px solid rgba(239, 68, 68, 0.3);
+                border-radius: 11px;
                 min-width: 40px;
                 max-width: 40px;
                 min-height: 40px;
                 max-height: 40px;
             }
             QPushButton#IconTrashBtn:hover {
-                background-color: #DC2626;
+                background-color: rgba(239, 68, 68, 0.3);
                 border-color: #EF4444;
             }
+            QPushButton#IconTrashBtn:pressed {
+                background-color: #DC2626;
+            }
+
+            /* ═══ FILTER BUTTONS ═══ */
+            QPushButton#FilterBtn {
+                background-color: rgba(30, 41, 59, 0.6);
+                color: #64748B;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 6px 14px;
+                border-radius: 10px;
+                border: 1px solid rgba(51, 65, 85, 0.6);
+            }
+            QPushButton#FilterBtn:hover {
+                background-color: rgba(51, 65, 85, 0.8);
+                color: #CBD5E1;
+                border-color: #475569;
+            }
+            QPushButton#FilterBtn[active="true"] {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(2,132,199,0.4), stop:1 rgba(14,165,233,0.2));
+                color: #38BDF8;
+                border-color: rgba(56, 189, 248, 0.5);
+            }
+
+            /* ═══ LIST WIDGET ═══ */
             QListWidget {
-                background-color: #0B0F19;
-                border: 1px solid #1F293D;
-                border-radius: 14px;
-                padding: 10px;
-                font-size: 16px;
+                background-color: transparent;
+                border: none;
+                padding: 4px;
+                font-size: 15px;
+                outline: none;
             }
             QListWidget::item {
-                background-color: #111827;
-                border: 1px solid #1F293D;
-                border-radius: 12px;
-                margin-bottom: 8px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #111C2E, stop:1 #0C1520);
+                border: 1px solid rgba(56, 189, 248, 0.08);
+                border-radius: 14px;
+                margin-bottom: 7px;
+                padding: 2px;
             }
             QListWidget::item:hover {
-                background-color: #1F293D;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #172035, stop:1 #101926);
+                border: 1px solid rgba(56, 189, 248, 0.2);
             }
-            QLineEdit, QComboBox {
-                background-color: #0B0F19;
-                border: 1px solid #1F293D;
-                border-radius: 10px;
+            QListWidget::item:selected {
+                background: rgba(2, 132, 199, 0.15);
+                border: 1px solid rgba(56, 189, 248, 0.35);
+            }
+
+            /* ═══ INPUT FIELDS ═══ */
+            QLineEdit {
+                background: rgba(10, 18, 32, 0.8);
+                border: 1px solid rgba(56, 189, 248, 0.15);
+                border-radius: 12px;
+                padding: 11px 16px;
+                color: #F1F5F9;
+                font-size: 15px;
+                selection-background-color: #0284C7;
+            }
+            QLineEdit:focus {
+                border: 1px solid rgba(56, 189, 248, 0.5);
+                background: rgba(14, 26, 46, 0.9);
+            }
+            QLineEdit:hover {
+                border: 1px solid rgba(56, 189, 248, 0.3);
+            }
+
+            /* ═══ COMBO BOX ═══ */
+            QComboBox {
+                background: rgba(10, 18, 32, 0.8);
+                border: 1px solid rgba(56, 189, 248, 0.15);
+                border-radius: 12px;
                 padding: 10px 14px;
-                color: #F8FAFC;
-                font-size: 16px;
+                color: #F1F5F9;
+                font-size: 14px;
+            }
+            QComboBox:hover {
+                border-color: rgba(56, 189, 248, 0.3);
             }
             QComboBox::drop-down {
                 border: none;
-                padding-right: 10px;
+                padding-right: 12px;
             }
             QComboBox QAbstractItemView {
-                background-color: #0F172A;
-                color: white;
+                background-color: #0D1B35;
+                color: #E2E8F0;
                 selection-background-color: #0284C7;
+                border: 1px solid rgba(56, 189, 248, 0.2);
+                border-radius: 8px;
+                padding: 4px;
             }
+
+            /* ═══ CHECKBOXES ═══ */
             QCheckBox {
-                font-size: 16px;
+                font-size: 15px;
                 spacing: 10px;
+                color: #CBD5E1;
             }
             QCheckBox::indicator {
                 width: 22px;
                 height: 22px;
-                border-radius: 6px;
-                border: 1px solid #1F293D;
-                background-color: #0B0F19;
+                border-radius: 7px;
+                border: 2px solid rgba(56, 189, 248, 0.25);
+                background-color: rgba(10, 18, 32, 0.8);
+            }
+            QCheckBox::indicator:hover {
+                border-color: rgba(56, 189, 248, 0.5);
             }
             QCheckBox::indicator:checked {
-                background-color: #0284C7;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #0284C7, stop:1 #38BDF8);
                 border-color: #38BDF8;
             }
+
+            /* ═══ PROGRESS BARS ═══ */
             QProgressBar {
-                background-color: #0B0F19;
-                border: 1px solid #1F293D;
+                background: rgba(10, 18, 32, 0.6);
+                border: 1px solid rgba(56, 189, 248, 0.1);
                 border-radius: 10px;
-                height: 24px;
+                height: 22px;
                 text-align: center;
-                color: #F8FAFC;
+                color: #94A3B8;
                 font-weight: bold;
-                font-size: 14px;
+                font-size: 12px;
             }
             QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #10B981);
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0284C7, stop:0.5 #0EA5E9, stop:1 #38BDF8);
                 border-radius: 9px;
             }
-            QPushButton#FilterBtn {
-                background-color: #1E293B;
-                color: #94A3B8;
-                font-size: 13px;
-                font-weight: bold;
-                padding: 5px 12px;
-                border-radius: 8px;
-                border: 1px solid #334155;
+
+            /* ═══ SCROLLBAR ═══ */
+            QScrollBar:vertical {
+                background: rgba(10, 18, 32, 0.4);
+                width: 6px;
+                border-radius: 3px;
             }
-            QPushButton#FilterBtn:hover {
-                background-color: #334155;
-                color: white;
+            QScrollBar::handle:vertical {
+                background: rgba(56, 189, 248, 0.25);
+                border-radius: 3px;
+                min-height: 30px;
             }
-            QPushButton#FilterBtn[active="true"] {
-                background-color: #0284C7;
-                color: white;
-                border-color: #38BDF8;
+            QScrollBar::handle:vertical:hover {
+                background: rgba(56, 189, 248, 0.45);
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0;
+            }
+            QScrollBar:horizontal {
+                background: rgba(10, 18, 32, 0.4);
+                height: 6px;
+                border-radius: 3px;
+            }
+            QScrollBar::handle:horizontal {
+                background: rgba(56, 189, 248, 0.25);
+                border-radius: 3px;
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0;
             }
         """)
 
+    def _make_page_bg(self):
+        """Creates a consistently styled page background widget."""
+        w = QWidget()
+        w.setStyleSheet("background: transparent;")
+        return w
+
     def setup_ui(self):
         main_widget = QWidget()
+        main_widget.setStyleSheet("background-color: #060A12;")
         self.setCentralWidget(main_widget)
 
         main_layout = QHBoxLayout(main_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Sidebar
+        # ─── Sidebar ─────────────────────────────────────────────────────────
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(270)
+        sidebar.setFixedWidth(260)
 
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(20, 25, 20, 25)
-        sidebar_layout.setSpacing(14)
+        sidebar_layout.setContentsMargins(16, 28, 16, 24)
+        sidebar_layout.setSpacing(6)
 
-        # Header with ORIGINAL natural logo
+        # Logo + App Name Header
         header_box = QHBoxLayout()
+        header_box.setSpacing(10)
+
         logo_path = get_asset_path("logo.png")
         if logo_path and os.path.exists(logo_path):
             logo_lbl = QLabel()
-            pix = QPixmap(logo_path).scaled(46, 46, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pix = QPixmap(logo_path).scaled(44, 44, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             logo_lbl.setPixmap(pix)
             header_box.addWidget(logo_lbl)
 
+        title_vbox = QVBoxLayout()
+        title_vbox.setSpacing(1)
         app_title = QLabel("مركز الإنتاجية")
-        app_title.setStyleSheet("font-size: 23px; font-weight: bold; color: #38BDF8;")
-        header_box.addWidget(app_title)
+        app_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #38BDF8; letter-spacing: 0px;")
+        app_sub = QLabel("Productivity Hub")
+        app_sub.setStyleSheet("font-size: 11px; color: #334155; font-weight: 500;")
+        title_vbox.addWidget(app_title)
+        title_vbox.addWidget(app_sub)
+        header_box.addLayout(title_vbox)
         header_box.addStretch()
 
         sidebar_layout.addLayout(header_box)
-        sidebar_layout.addSpacing(15)
+        sidebar_layout.addSpacing(20)
 
-        self.btn_nav_dash = self.create_nav_button(" الرئيسية", "homelogo.png", 0)
-        self.btn_nav_tasks = self.create_nav_button(" المهام اليومية", "bullseye-arrowlogo.png", 1)
-        self.btn_nav_badge = self.create_nav_button(" الإحصائيات والأوسمة", "bullseye-arrowlogo.png", 2)
-        self.btn_nav_sched = self.create_nav_button(" جدول التعلم", "calendarlogo.png", 3)
-        self.btn_nav_block = self.create_nav_button(" التطبيقات الممنوعة", "forbiddenapps.png", 4)
-        self.btn_nav_web_block = self.create_nav_button(" المواقع المحظورة", "forbiddenapps.png", 5)
-        self.btn_nav_sets = self.create_nav_button(" الإعدادات والاختبار", "settingslogo.png", 6)
+        # Divider
+        div_line = QFrame()
+        div_line.setFixedHeight(1)
+        div_line.setStyleSheet("background: rgba(56, 189, 248, 0.1); margin: 0 4px;")
+        sidebar_layout.addWidget(div_line)
+        sidebar_layout.addSpacing(10)
 
-        self.btn_nav_dash.setProperty("active", "true")
+        # Nav Section Label
+        nav_section = QLabel("  القائمة الرئيسية")
+        nav_section.setStyleSheet("color: #334155; font-size: 11px; font-weight: bold; letter-spacing: 1px;")
+        sidebar_layout.addWidget(nav_section)
+        sidebar_layout.addSpacing(4)
 
+        self.btn_nav_dash = self.create_nav_button(" 🏠  الرئيسية", "homelogo.png", 0)
+        self.btn_nav_tasks = self.create_nav_button(" ✅  المهام اليومية", "bullseye-arrowlogo.png", 1)
+        self.btn_nav_badge = self.create_nav_button(" 🏆  الإنجازات والأوسمة", "bullseye-arrowlogo.png", 2)
+        self.btn_nav_sched = self.create_nav_button(" 📅  جدول التعلم", "calendarlogo.png", 3)
         sidebar_layout.addWidget(self.btn_nav_dash)
         sidebar_layout.addWidget(self.btn_nav_tasks)
         sidebar_layout.addWidget(self.btn_nav_badge)
         sidebar_layout.addWidget(self.btn_nav_sched)
+
+        sidebar_layout.addSpacing(10)
+        block_section = QLabel("  الحماية والتركيز")
+        block_section.setStyleSheet("color: #334155; font-size: 11px; font-weight: bold; letter-spacing: 1px;")
+        sidebar_layout.addWidget(block_section)
+        sidebar_layout.addSpacing(4)
+
+        self.btn_nav_block = self.create_nav_button(" 🚫  التطبيقات الممنوعة", "forbiddenapps.png", 4)
+        self.btn_nav_web_block = self.create_nav_button(" 🌐  المواقع المحظورة", "forbiddenapps.png", 5)
+        self.btn_nav_sets = self.create_nav_button(" ⚙️  الإعدادات", "settingslogo.png", 6)
         sidebar_layout.addWidget(self.btn_nav_block)
         sidebar_layout.addWidget(self.btn_nav_web_block)
         sidebar_layout.addWidget(self.btn_nav_sets)
+
         sidebar_layout.addStretch()
 
-        ver_lbl = QLabel("الإصدار الأسطوري 6.0 ⚡")
-        ver_lbl.setStyleSheet("color: #64748B; font-size: 13px;")
+        # Bottom version area
+        bottom_div = QFrame()
+        bottom_div.setFixedHeight(1)
+        bottom_div.setStyleSheet("background: rgba(56, 189, 248, 0.08);")
+        sidebar_layout.addWidget(bottom_div)
+        sidebar_layout.addSpacing(10)
+
+        ver_lbl = QLabel("⚡ الإصدار الأسطوري 6.0")
+        ver_lbl.setStyleSheet("color: #1E3A5F; font-size: 12px; font-weight: bold;")
         ver_lbl.setAlignment(Qt.AlignCenter)
         sidebar_layout.addWidget(ver_lbl)
 
+        self.btn_nav_dash.setProperty("active", "true")
+
+        # ─── Content Area ─────────────────────────────────────────────────────
+        content_widget = QWidget()
+        content_widget.setStyleSheet("background: #060A12;")
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+
         # Stacked Pages
         self.pages = QStackedWidget()
+        self.pages.setStyleSheet("background: transparent;")
         self.pages.addWidget(self.create_dashboard_page())
         self.pages.addWidget(self.create_tasks_page())
         self.pages.addWidget(self.create_analytics_page())
@@ -405,19 +607,15 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.create_blocked_websites_page())
         self.pages.addWidget(self.create_settings_page())
 
+        content_layout.addWidget(self.pages)
         main_layout.addWidget(sidebar)
-        main_layout.addWidget(self.pages)
+        main_layout.addWidget(content_widget)
 
     def create_nav_button(self, text, icon_filename, page_index):
         btn = QPushButton(text)
         btn.setObjectName("NavBtn")
         btn.setCursor(Qt.PointingHandCursor)
-
-        pix = get_tinted_pixmap(icon_filename, "#FFFFFF", QSize(24, 24))
-        if not pix.isNull():
-            btn.setIcon(QIcon(pix))
-            btn.setIconSize(QSize(24, 24))
-
+        btn.setMinimumHeight(46)
         btn.clicked.connect(lambda: self.switch_page(page_index))
         return btn
 
@@ -431,147 +629,154 @@ class MainWindow(QMainWindow):
     # Page 1: Dashboard
     def create_dashboard_page(self):
         page = QWidget()
+        page.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(32, 32, 32, 32)
-        layout.setSpacing(22)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(18)
 
-        # Status Card
+        # ── Session Status Card (Hero) ──────────────────────────────────────
         self.status_card = QFrame()
-        self.status_card.setObjectName("Card")
-        self.status_card.setStyleSheet("background-color: #111827; border-left: 6px solid #64748B;")
+        self.status_card.setMinimumHeight(110)
+        self.status_card.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0B1929, stop:1 #0D1F33);
+                border: 1px solid rgba(100, 116, 139, 0.3);
+                border-left: 4px solid #475569;
+                border-radius: 18px;
+            }
+        """)
 
         status_layout = QHBoxLayout(self.status_card)
-        
+        status_layout.setContentsMargins(24, 20, 24, 20)
+        status_layout.setSpacing(20)
+
+        # Left: indicator dot + text
+        indicator_col = QVBoxLayout()
+        indicator_col.setAlignment(Qt.AlignVCenter)
+        self.lbl_status_dot = QLabel("⬤")
+        self.lbl_status_dot.setStyleSheet("font-size: 18px; color: #475569;")
+        indicator_col.addWidget(self.lbl_status_dot)
+        status_layout.addLayout(indicator_col)
+
         status_info = QVBoxLayout()
+        status_info.setSpacing(5)
         self.lbl_status_title = QLabel("حالة جلسة التعلم: غير نشطة")
-        self.lbl_status_title.setStyleSheet("font-size: 24px; font-weight: bold; color: #94A3B8;")
-        self.lbl_status_desc = QLabel("عند بدء التعلم، يتم حظر التطبيقات الممنوعة تلقائياً لحمايتك من التشتت.")
-        self.lbl_status_desc.setStyleSheet("font-size: 15px; color: #CBD5E1;")
-        
+        self.lbl_status_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #94A3B8;")
+        self.lbl_status_desc = QLabel("عند بدء التعلم، يتم حظر التطبيقات والمواقع الممنوعة تلقائياً لحمايتك من التشتت.")
+        self.lbl_status_desc.setStyleSheet("font-size: 13px; color: #64748B;")
+        self.lbl_status_desc.setWordWrap(True)
         status_info.addWidget(self.lbl_status_title)
         status_info.addWidget(self.lbl_status_desc)
 
-        # Action Buttons Layout
-        btn_box = QVBoxLayout()
+        # Right: Action Buttons
+        btn_box = QHBoxLayout()
+        btn_box.setSpacing(10)
         btn_box.setAlignment(Qt.AlignCenter)
 
-        self.btn_start_learning = QPushButton(" بدء جلسة التعلم الآن")
+        self.btn_start_learning = QPushButton("▶  بدء جلسة التعلم")
         self.btn_start_learning.setObjectName("PrimaryBtn")
         self.btn_start_learning.setCursor(Qt.PointingHandCursor)
-        play_pix = get_tinted_pixmap("playlogonotpauselogolikeinyoutube.png", "#FFFFFF", QSize(26, 26))
-        if not play_pix.isNull():
-            self.btn_start_learning.setIcon(QIcon(play_pix))
-            self.btn_start_learning.setIconSize(QSize(26, 26))
+        self.btn_start_learning.setMinimumWidth(170)
         self.btn_start_learning.clicked.connect(self.start_manual_session)
 
-        self.btn_finish_learning = QPushButton(" لقد أنهيت التعلم")
+        self.btn_finish_learning = QPushButton("⏹  إنهاء الجلسة")
         self.btn_finish_learning.setObjectName("FinishBtn")
         self.btn_finish_learning.setCursor(Qt.PointingHandCursor)
-        pause_pix = get_tinted_pixmap("pauselogo.png", "#FFFFFF", QSize(26, 26))
-        if not pause_pix.isNull():
-            self.btn_finish_learning.setIcon(QIcon(pause_pix))
-            self.btn_finish_learning.setIconSize(QSize(26, 26))
+        self.btn_finish_learning.setMinimumWidth(155)
         self.btn_finish_learning.clicked.connect(self.finish_learning_session)
 
         btn_box.addWidget(self.btn_start_learning)
         btn_box.addWidget(self.btn_finish_learning)
 
-        status_layout.addLayout(status_info)
-        status_layout.addStretch()
+        status_layout.addLayout(status_info, 1)
         status_layout.addLayout(btn_box)
 
         layout.addWidget(self.status_card)
 
-        # Stats Header
-        stats_header = QHBoxLayout()
-        target_pix = get_tinted_pixmap("bullseye-arrowlogo.png", "#38BDF8", QSize(32, 32))
-        if not target_pix.isNull():
-            ic_lbl = QLabel()
-            ic_lbl.setPixmap(target_pix)
-            stats_header.addWidget(ic_lbl)
+        # ── Stats Row ─────────────────────────────────────────────────────
+        stats_header_lbl = QLabel("📊 إحصائيات اليوم")
+        stats_header_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #64748B; letter-spacing: 0px;")
+        layout.addWidget(stats_header_lbl)
 
-        stats_title = QLabel("إحصائيات الإنجاز اليومي")
-        stats_title.setStyleSheet("font-size: 22px; font-weight: bold; color: #F8FAFC;")
-        stats_header.addWidget(stats_title)
-        stats_header.addStretch()
-
-        layout.addLayout(stats_header)
-
-        # Stats Grid
         stats_grid = QHBoxLayout()
-        stats_grid.setSpacing(18)
+        stats_grid.setSpacing(14)
 
-        # Water Stat
-        card_water = QFrame()
-        card_water.setObjectName("Card")
-        wl = QVBoxLayout(card_water)
-        water_pix = get_tinted_pixmap("waterlogo.png", "#38BDF8", QSize(48, 48))
-        if not water_pix.isNull():
-            w_ic = QLabel()
-            w_ic.setPixmap(water_pix)
-            wl.addWidget(w_ic)
-        wl.addWidget(QLabel("شرب الماء اليومي"))
-        self.lbl_stat_water = QLabel(f"{self.config['daily_stats']['water_count']} أكواب")
-        self.lbl_stat_water.setObjectName("StatValue")
-        self.lbl_stat_water.setStyleSheet("color: #38BDF8;")
-        wl.addWidget(self.lbl_stat_water)
+        def make_stat_card(emoji, title, value_lbl_attr, value_text, color, icon_file):
+            card = QFrame()
+            card.setObjectName("StatCard")
+            card.setStyleSheet(f"""
+                QFrame#StatCard {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                        stop:0 #0F1E30, stop:1 #091220);
+                    border: 1px solid {color}25;
+                    border-top: 3px solid {color};
+                    border-radius: 18px;
+                }}
+            """)
+            card_l = QVBoxLayout(card)
+            card_l.setContentsMargins(20, 18, 20, 18)
+            card_l.setSpacing(8)
 
-        # Pushups Stat
-        card_pushups = QFrame()
-        card_pushups.setObjectName("Card")
-        pl = QVBoxLayout(card_pushups)
-        gym_pix = get_tinted_pixmap("gymlogo.png", "#FB923C", QSize(48, 48))
-        if not gym_pix.isNull():
-            g_ic = QLabel()
-            g_ic.setPixmap(gym_pix)
-            pl.addWidget(g_ic)
-        pl.addWidget(QLabel("تمارين الضغط"))
-        self.lbl_stat_pushups = QLabel(f"{self.config['daily_stats']['pushups_count']} ضغطات")
-        self.lbl_stat_pushups.setObjectName("StatValue")
-        self.lbl_stat_pushups.setStyleSheet("color: #FB923C;")
-        pl.addWidget(self.lbl_stat_pushups)
+            # Icon + Title row
+            top_row = QHBoxLayout()
+            ic_lbl = QLabel(emoji)
+            ic_lbl.setStyleSheet(f"font-size: 28px;")
+            title_lbl = QLabel(title)
+            title_lbl.setStyleSheet(f"font-size: 13px; color: #64748B; font-weight: 600;")
+            top_row.addWidget(ic_lbl)
+            top_row.addWidget(title_lbl)
+            top_row.addStretch()
+            card_l.addLayout(top_row)
 
-        # Learning Time Stat
-        card_session = QFrame()
-        card_session.setObjectName("Card")
-        sl = QVBoxLayout(card_session)
-        clock_pix = get_tinted_pixmap("clocklogo.png", "#10B981", QSize(48, 48))
-        if not clock_pix.isNull():
-            c_ic = QLabel()
-            c_ic.setPixmap(clock_pix)
-            sl.addWidget(c_ic)
-        sl.addWidget(QLabel("وقت التعلم اليوم"))
-        self.lbl_stat_time = QLabel(f"{self.config['daily_stats']['learning_minutes']} دقيقة")
-        self.lbl_stat_time.setObjectName("StatValue")
-        self.lbl_stat_time.setStyleSheet("color: #10B981;")
-        sl.addWidget(self.lbl_stat_time)
+            val_lbl = QLabel(value_text)
+            val_lbl.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {color};")
+            setattr(self, value_lbl_attr, val_lbl)
+            card_l.addWidget(val_lbl)
+            return card
+
+        water_count = self.config['daily_stats']['water_count']
+        push_count = self.config['daily_stats']['pushups_count']
+        learn_mins = self.config['daily_stats']['learning_minutes']
+
+        card_water = make_stat_card("💧", "شرب الماء اليومي", "lbl_stat_water", f"{water_count} أكواب", "#38BDF8", "waterlogo.png")
+        card_pushups = make_stat_card("🏋️", "تمارين اليوم", "lbl_stat_pushups", f"{push_count} ضغطات", "#FB923C", "gymlogo.png")
+        card_session = make_stat_card("⏱️", "وقت التعلم اليوم", "lbl_stat_time", f"{learn_mins} دقيقة", "#10B981", "clocklogo.png")
 
         stats_grid.addWidget(card_water)
         stats_grid.addWidget(card_pushups)
         stats_grid.addWidget(card_session)
-
         layout.addLayout(stats_grid)
 
-        # 📋 To-Do List Card
+        # ── Tasks Compact Card ──────────────────────────────────────────────
         card_tasks = QFrame()
         card_tasks.setObjectName("Card")
+        card_tasks.setStyleSheet("""
+            QFrame#Card {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #111C2E, stop:1 #0C1520);
+                border: 1px solid rgba(56, 189, 248, 0.1);
+                border-radius: 20px;
+            }
+        """)
         tasks_layout = QVBoxLayout(card_tasks)
-        tasks_layout.setSpacing(14)
+        tasks_layout.setContentsMargins(22, 18, 22, 18)
+        tasks_layout.setSpacing(12)
 
         # Header Row
         tasks_header = QHBoxLayout()
         lbl_tasks_title = QLabel("📋 قائمة المهام اليومية")
-        lbl_tasks_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #F8FAFC;")
-        
-        self.lbl_task_progress = QLabel("إنجاز المهام: 0%")
-        self.lbl_task_progress.setStyleSheet("font-size: 15px; font-weight: bold; color: #10B981;")
+        lbl_tasks_title.setStyleSheet("font-size: 17px; font-weight: bold; color: #E2E8F0;")
+
+        self.lbl_task_progress = QLabel("إنجاز: 0%")
+        self.lbl_task_progress.setStyleSheet("font-size: 14px; font-weight: bold; color: #10B981;")
 
         # Filter Buttons
         filter_box = QHBoxLayout()
         filter_box.setSpacing(6)
         self.btn_filter_all = QPushButton("الكل")
-        self.btn_filter_active = QPushButton("النشطة ⏳")
-        self.btn_filter_completed = QPushButton("المكتملة ✅")
+        self.btn_filter_active = QPushButton("نشطة ⏳")
+        self.btn_filter_completed = QPushButton("مكتملة ✅")
 
         for b, f_val in [(self.btn_filter_all, "all"), (self.btn_filter_active, "active"), (self.btn_filter_completed, "completed")]:
             b.setObjectName("FilterBtn")
@@ -583,7 +788,7 @@ class MainWindow(QMainWindow):
         filter_box.addWidget(self.btn_filter_completed)
 
         tasks_header.addWidget(lbl_tasks_title)
-        tasks_header.addSpacing(15)
+        tasks_header.addSpacing(12)
         tasks_header.addLayout(filter_box)
         tasks_header.addStretch()
         tasks_header.addWidget(self.lbl_task_progress)
@@ -593,15 +798,22 @@ class MainWindow(QMainWindow):
         self.task_progress_bar = QProgressBar()
         self.task_progress_bar.setRange(0, 100)
         self.task_progress_bar.setValue(0)
+        self.task_progress_bar.setFixedHeight(8)
+        self.task_progress_bar.setTextVisible(False)
+        self.task_progress_bar.setStyleSheet("""
+            QProgressBar { background: rgba(30, 41, 59, 0.8); border: none; border-radius: 4px; }
+            QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0284C7, stop:1 #10B981); border-radius: 4px; }
+        """)
         tasks_layout.addWidget(self.task_progress_bar)
 
         # Add Task Input Row
         add_task_box = QHBoxLayout()
+        add_task_box.setSpacing(10)
         self.txt_task_input = QLineEdit()
-        self.txt_task_input.setPlaceholderText("اكتب مهمة جديدة هنا وأضغط إضافة أو Enter...")
+        self.txt_task_input.setPlaceholderText("✏️  أضف مهمة جديدة هنا...")
         self.txt_task_input.returnPressed.connect(self.add_task)
 
-        btn_add_task = QPushButton("إضافة مهمة ➕")
+        btn_add_task = QPushButton("➕ إضافة")
         btn_add_task.setObjectName("PrimaryBtn")
         btn_add_task.setCursor(Qt.PointingHandCursor)
         btn_add_task.clicked.connect(self.add_task)
@@ -612,8 +824,8 @@ class MainWindow(QMainWindow):
 
         # List Widget for Tasks
         self.list_tasks = QListWidget()
-        self.list_tasks.setMinimumHeight(150)
-        self.list_tasks.setMaximumHeight(220)
+        self.list_tasks.setMinimumHeight(160)
+        self.list_tasks.setMaximumHeight(240)
         tasks_layout.addWidget(self.list_tasks)
 
         layout.addWidget(card_tasks)
@@ -621,143 +833,142 @@ class MainWindow(QMainWindow):
 
         return page
 
-    # Page 1.5: Dedicated Tasks Page (Full spacious view for daily tasks)
+    # Page 1.5: Dedicated Tasks Page
     def create_tasks_page(self):
         page = QWidget()
+        page.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(32, 28, 32, 28)
-        layout.setSpacing(18)
+        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(16)
 
-        # Title Row
-        title_box = QHBoxLayout()
-        target_pix = get_tinted_pixmap("bullseye-arrowlogo.png", "#38BDF8", QSize(36, 36))
-        if not target_pix.isNull():
-            ic_lbl = QLabel()
-            ic_lbl.setPixmap(target_pix)
-            title_box.addWidget(ic_lbl)
+        # ── Page Header ─────────────────────────────────────────────────────
+        header_card = QFrame()
+        header_card.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0A1628, stop:1 #0E1F3A);
+                border: 1px solid rgba(56, 189, 248, 0.12);
+                border-radius: 20px;
+            }
+        """)
+        header_layout = QHBoxLayout(header_card)
+        header_layout.setContentsMargins(24, 16, 24, 16)
 
-        title = QLabel("📋 قائمة المهام والتركيز اليومي")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #F8FAFC;")
-        title_box.addWidget(title)
-        title_box.addStretch()
+        title_vbox = QVBoxLayout()
+        title_vbox.setSpacing(4)
+        title = QLabel("✅ المهام اليومية")
+        title.setStyleSheet("font-size: 26px; font-weight: bold; color: #F1F5F9;")
+        desc = QLabel("نظّم مهامك، تابع تقدمك، واستمتع بيوم إنتاجي مليء بالإنجاز بدون مشتتات.")
+        desc.setStyleSheet("color: #64748B; font-size: 13px;")
+        title_vbox.addWidget(title)
+        title_vbox.addWidget(desc)
+        header_layout.addLayout(title_vbox)
+        header_layout.addStretch()
+        layout.addWidget(header_card)
 
-        layout.addLayout(title_box)
-
-        desc = QLabel("نظّم مهامك وأهدافك اليومية، تابع نسبة الإنجاز واستمتع بيوم أكثر إنتاجية بدون مشتتات.")
-        desc.setStyleSheet("color: #94A3B8; font-size: 15px;")
-        layout.addWidget(desc)
-
-        # Top Overview Card (3 Stat Columns: Total, Pending, Completed + Progress Bar)
-        overview_card = QFrame()
-        overview_card.setObjectName("Card")
-        ov_layout = QVBoxLayout(overview_card)
-        ov_layout.setSpacing(14)
-
+        # ── Overview Stats Row ───────────────────────────────────────────────
         stats_row = QHBoxLayout()
-        stats_row.setSpacing(16)
+        stats_row.setSpacing(12)
 
-        # Total Card
-        c_tot = QFrame()
-        c_tot.setStyleSheet("background-color: #0B0F19; border: 1px solid #1F293D; border-radius: 14px; padding: 12px 16px;")
-        l_tot = QVBoxLayout(c_tot)
-        l_tot.addWidget(QLabel("إجمالي المهام"))
-        self.lbl_task_stat_total = QLabel("0")
-        self.lbl_task_stat_total.setObjectName("StatValue")
-        self.lbl_task_stat_total.setStyleSheet("font-size: 26px; color: #38BDF8; font-weight: bold;")
-        l_tot.addWidget(self.lbl_task_stat_total)
+        def make_mini_stat(emoji, lbl_text, attr_name, color):
+            c = QFrame()
+            c.setStyleSheet(f"""
+                QFrame {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                        stop:0 #0F1E30, stop:1 #091220);
+                    border: 1px solid {color}25;
+                    border-top: 3px solid {color};
+                    border-radius: 16px;
+                }}
+            """)
+            cl = QVBoxLayout(c)
+            cl.setContentsMargins(18, 14, 18, 14)
+            cl.setSpacing(6)
+            top = QLabel(f"{emoji} {lbl_text}")
+            top.setStyleSheet("font-size: 12px; color: #64748B; font-weight: 600;")
+            val = QLabel("0")
+            val.setStyleSheet(f"font-size: 28px; font-weight: bold; color: {color};")
+            setattr(self, attr_name, val)
+            cl.addWidget(top)
+            cl.addWidget(val)
+            return c
 
-        # Pending Card
-        c_pen = QFrame()
-        c_pen.setStyleSheet("background-color: #0B0F19; border: 1px solid #1F293D; border-radius: 14px; padding: 12px 16px;")
-        l_pen = QVBoxLayout(c_pen)
-        l_pen.addWidget(QLabel("قيد الانتظار ⏳"))
-        self.lbl_task_stat_pending = QLabel("0")
-        self.lbl_task_stat_pending.setObjectName("StatValue")
-        self.lbl_task_stat_pending.setStyleSheet("font-size: 26px; color: #FB923C; font-weight: bold;")
-        l_pen.addWidget(self.lbl_task_stat_pending)
+        stats_row.addWidget(make_mini_stat("📦", "إجمالي المهام", "lbl_task_stat_total", "#38BDF8"))
+        stats_row.addWidget(make_mini_stat("⏳", "قيد الانتظار", "lbl_task_stat_pending", "#FB923C"))
+        stats_row.addWidget(make_mini_stat("✅", "مكتملة اليوم", "lbl_task_stat_done", "#10B981"))
+        layout.addLayout(stats_row)
 
-        # Completed Card
-        c_don = QFrame()
-        c_don.setStyleSheet("background-color: #0B0F19; border: 1px solid #1F293D; border-radius: 14px; padding: 12px 16px;")
-        l_don = QVBoxLayout(c_don)
-        l_don.addWidget(QLabel("المهام المكتملة ✅"))
-        self.lbl_task_stat_done = QLabel("0")
-        self.lbl_task_stat_done.setObjectName("StatValue")
-        self.lbl_task_stat_done.setStyleSheet("font-size: 26px; color: #10B981; font-weight: bold;")
-        l_don.addWidget(self.lbl_task_stat_done)
+        # ── Progress Bar ─────────────────────────────────────────────────────
+        prog_card = QFrame()
+        prog_card.setObjectName("Card")
+        prog_layout = QVBoxLayout(prog_card)
+        prog_layout.setContentsMargins(20, 14, 20, 14)
+        prog_layout.setSpacing(8)
 
-        stats_row.addWidget(c_tot)
-        stats_row.addWidget(c_pen)
-        stats_row.addWidget(c_don)
-        ov_layout.addLayout(stats_row)
-
-        # Progress Bar Header
         pb_header = QHBoxLayout()
-        lbl_pb_title = QLabel("مؤشر إنجاز اليوم:")
-        lbl_pb_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #F8FAFC;")
+        lbl_pb_title = QLabel("🎯 مؤشر إنجاز اليوم")
+        lbl_pb_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #E2E8F0;")
         self.lbl_task_page_percent = QLabel("0%")
         self.lbl_task_page_percent.setStyleSheet("font-size: 16px; font-weight: bold; color: #10B981;")
-
         pb_header.addWidget(lbl_pb_title)
         pb_header.addStretch()
         pb_header.addWidget(self.lbl_task_page_percent)
-        ov_layout.addLayout(pb_header)
+        prog_layout.addLayout(pb_header)
 
         self.task_page_progress_bar = QProgressBar()
         self.task_page_progress_bar.setRange(0, 100)
         self.task_page_progress_bar.setValue(0)
-        ov_layout.addWidget(self.task_page_progress_bar)
+        self.task_page_progress_bar.setFixedHeight(12)
+        self.task_page_progress_bar.setTextVisible(False)
+        self.task_page_progress_bar.setStyleSheet("""
+            QProgressBar { background: rgba(30,41,59,0.8); border: none; border-radius: 6px; }
+            QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0284C7, stop:1 #10B981); border-radius: 6px; }
+        """)
+        prog_layout.addWidget(self.task_page_progress_bar)
+        layout.addWidget(prog_card)
 
-        layout.addWidget(overview_card)
-
-        # Add Task Input Box Card
+        # ── Add Task Input ────────────────────────────────────────────────────
         add_card = QFrame()
         add_card.setObjectName("Card")
         add_layout = QHBoxLayout(add_card)
+        add_layout.setContentsMargins(18, 14, 18, 14)
         add_layout.setSpacing(12)
 
         self.txt_task_page_input = QLineEdit()
-        self.txt_task_page_input.setPlaceholderText("اكتب المهمة الجديدة هنا (مثال: مذاكرة 40 دقيقة لغة عربية)...")
-        self.txt_task_page_input.setStyleSheet("font-size: 16px; padding: 10px 14px;")
+        self.txt_task_page_input.setPlaceholderText("✏️  أكتب المهمة الجديدة هنا (مثال: مراجعة 30 دقيقة رياضيات)...")
         self.txt_task_page_input.returnPressed.connect(self.add_task_from_page)
 
-        btn_add = QPushButton("➕ إضافة المهمة الآن")
+        btn_add = QPushButton("➕ إضافة المهمة")
         btn_add.setObjectName("PrimaryBtn")
         btn_add.setCursor(Qt.PointingHandCursor)
-        btn_add.setStyleSheet("padding: 10px 20px; font-size: 16px;")
         btn_add.clicked.connect(self.add_task_from_page)
 
         add_layout.addWidget(self.txt_task_page_input, 1)
         add_layout.addWidget(btn_add)
         layout.addWidget(add_card)
 
-        # Filter Buttons & Main Task List
-        filter_header = QHBoxLayout()
-        lbl_list_title = QLabel("قائمة المهام اليومية:")
-        lbl_list_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #F8FAFC;")
-        filter_header.addWidget(lbl_list_title)
-        filter_header.addSpacing(15)
+        # ── Filter Buttons ────────────────────────────────────────────────────
+        filter_row = QHBoxLayout()
+        filter_row.setSpacing(8)
+        lbl_list_title = QLabel("قائمة المهام:")
+        lbl_list_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #94A3B8;")
+        filter_row.addWidget(lbl_list_title)
+        filter_row.addSpacing(10)
 
-        filter_box = QHBoxLayout()
-        filter_box.setSpacing(8)
         self.btn_filter_page_all = QPushButton("الكل")
-        self.btn_filter_page_active = QPushButton("النشطة ⏳")
-        self.btn_filter_page_completed = QPushButton("المكتملة ✅")
+        self.btn_filter_page_active = QPushButton("نشطة ⏳")
+        self.btn_filter_page_completed = QPushButton("مكتملة ✅")
 
         for b, f_val in [(self.btn_filter_page_all, "all"), (self.btn_filter_page_active, "active"), (self.btn_filter_page_completed, "completed")]:
             b.setObjectName("FilterBtn")
             b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(lambda ch, val=f_val: self.set_task_filter(val))
+            filter_row.addWidget(b)
 
-        filter_box.addWidget(self.btn_filter_page_all)
-        filter_box.addWidget(self.btn_filter_page_active)
-        filter_box.addWidget(self.btn_filter_page_completed)
+        filter_row.addStretch()
+        layout.addLayout(filter_row)
 
-        filter_header.addLayout(filter_box)
-        filter_header.addStretch()
-        layout.addLayout(filter_header)
-
-        # Large Spacious Task List Widget
+        # ── Large Spacious Task List ──────────────────────────────────────────
         self.list_tasks_page = QListWidget()
         self.list_tasks_page.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         layout.addWidget(self.list_tasks_page)
@@ -786,16 +997,28 @@ class MainWindow(QMainWindow):
         page_layout.addWidget(scroll)
 
         # ── Header ──────────────────────────────────────────────────────────
-        title_box = QHBoxLayout()
+        hdr_card = QFrame()
+        hdr_card.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0D1A30, stop:1 #0A1220);
+                border: 1px solid rgba(99, 102, 241, 0.2);
+                border-radius: 18px;
+            }
+        """)
+        hdr_row = QHBoxLayout(hdr_card)
+        hdr_row.setContentsMargins(22, 16, 22, 16)
+        title_vbox2 = QVBoxLayout()
+        title_vbox2.setSpacing(4)
         title = QLabel("🏆 مركز الإنجاز والأوسمة")
-        title.setStyleSheet("font-size: 26px; font-weight: bold; color: #F8FAFC;")
-        title_box.addWidget(title)
-        title_box.addStretch()
-        layout.addLayout(title_box)
-
+        title.setStyleSheet("font-size: 26px; font-weight: bold; color: #F1F5F9;")
         desc = QLabel("تابع رانكك، نقاطك، وأوسمة إنجازك. كل عمل صغير يصنع فرقاً كبيراً! 🚀")
-        desc.setStyleSheet("color: #94A3B8; font-size: 15px;")
-        layout.addWidget(desc)
+        desc.setStyleSheet("color: #64748B; font-size: 13px;")
+        title_vbox2.addWidget(title)
+        title_vbox2.addWidget(desc)
+        hdr_row.addLayout(title_vbox2)
+        hdr_row.addStretch()
+        layout.addWidget(hdr_card)
 
         # ── Rank & Score Card ────────────────────────────────────────────────
         rank_card = QFrame()
@@ -990,16 +1213,30 @@ class MainWindow(QMainWindow):
         self.reload_analytics_ui()
         return page
 
-    # Page 2: Schedules (SUPER EASY 1-CLICK PRESETS + EASY DROPDOWN PICKER)
+    # Page 2: Schedules
     def create_schedules_page(self):
         page = QWidget()
+        page.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(30, 25, 30, 25)
+        layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(16)
 
-        title = QLabel("📅 جدول مواعيد التعلم التلقائي")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        layout.addWidget(title)
+        # Header card
+        hdr = QFrame()
+        hdr.setStyleSheet("QFrame { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #0A1628,stop:1 #0E1F3A); border: 1px solid rgba(56,189,248,0.12); border-radius: 18px; }")
+        hdr_layout = QHBoxLayout(hdr)
+        hdr_layout.setContentsMargins(22, 14, 22, 14)
+        title_vb = QVBoxLayout()
+        title_vb.setSpacing(3)
+        title = QLabel("📅 جدول مواعيد التعلم")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #F1F5F9;")
+        sub = QLabel("ضبط مواعيد جلسات التعلم التلقائية ومتابعة الجداول اليومية")
+        sub.setStyleSheet("color: #64748B; font-size: 13px;")
+        title_vb.addWidget(title)
+        title_vb.addWidget(sub)
+        hdr_layout.addLayout(title_vb)
+        hdr_layout.addStretch()
+        layout.addWidget(hdr)
 
         # ⚡ 1-CLICK INSTANT PRESETS CARD
         preset_card = QFrame()
@@ -1118,17 +1355,26 @@ class MainWindow(QMainWindow):
     # Page 3: Blocked Apps
     def create_blocked_apps_page(self):
         page = QWidget()
+        page.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(32, 32, 32, 32)
-        layout.setSpacing(20)
+        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(16)
 
-        title = QLabel("🚫 البرامج والتطبيقات الممنوعة")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        layout.addWidget(title)
-
+        hdr = QFrame()
+        hdr.setStyleSheet("QFrame { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #1A0A12,stop:1 #0D1220); border: 1px solid rgba(239,68,68,0.2); border-radius: 18px; }")
+        hdr_layout = QHBoxLayout(hdr)
+        hdr_layout.setContentsMargins(22, 14, 22, 14)
+        title_vb = QVBoxLayout()
+        title_vb.setSpacing(3)
+        title = QLabel("🚫 التطبيقات الممنوعة")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #F1F5F9;")
         desc = QLabel("أثناء جلسة التعلم النشطة، سيمنع التطبيق البرامج المحددة للقضاء على التشتت.")
-        desc.setStyleSheet("color: #94A3B8; font-size: 15px;")
-        layout.addWidget(desc)
+        desc.setStyleSheet("color: #64748B; font-size: 13px;")
+        title_vb.addWidget(title)
+        title_vb.addWidget(desc)
+        hdr_layout.addLayout(title_vb)
+        hdr_layout.addStretch()
+        layout.addWidget(hdr)
 
         # 🔍 Search Box for Blocked Apps
         self.txt_search_blocked_apps = QLineEdit()
@@ -1167,17 +1413,26 @@ class MainWindow(QMainWindow):
     # Page 6: Blocked Websites Page
     def create_blocked_websites_page(self):
         page = QWidget()
+        page.setStyleSheet("background: transparent;")
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(32, 32, 32, 32)
-        layout.setSpacing(20)
+        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(16)
 
-        title = QLabel("🌐 المواقع المحظورة أثناء التعلم")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        layout.addWidget(title)
-
-        desc = QLabel("أثناء تفعيل وقت التعلم والتركيز، سيتم حظر الوصول لهذه المواقع لمنع التشتت زيادة الإنتاجية.")
-        desc.setStyleSheet("color: #94A3B8; font-size: 15px;")
-        layout.addWidget(desc)
+        hdr = QFrame()
+        hdr.setStyleSheet("QFrame { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #0A1228,stop:1 #0D1A30); border: 1px solid rgba(56,189,248,0.15); border-radius: 18px; }")
+        hdr_layout = QHBoxLayout(hdr)
+        hdr_layout.setContentsMargins(22, 14, 22, 14)
+        title_vb = QVBoxLayout()
+        title_vb.setSpacing(3)
+        title = QLabel("🌐 المواقع المحظورة")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #F1F5F9;")
+        desc = QLabel("أثناء تفعيل وقت التعلم، سيتم حظر الوصول لهذه المواقع لمنع التشتت وزيادة الإنتاجية.")
+        desc.setStyleSheet("color: #64748B; font-size: 13px;")
+        title_vb.addWidget(title)
+        title_vb.addWidget(desc)
+        hdr_layout.addLayout(title_vb)
+        hdr_layout.addStretch()
+        layout.addWidget(hdr)
 
         # Quick Preset Buttons Row
         preset_card = QFrame()
@@ -1240,52 +1495,84 @@ class MainWindow(QMainWindow):
     # Page 7: Settings & Instant Testing
     def create_settings_page(self):
         page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(32, 32, 32, 32)
-        layout.setSpacing(20)
+        page.setStyleSheet("background: transparent;")
 
-        title = QLabel("⚙️ الإعدادات وتجربة التنبيهات")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        layout.addWidget(title)
+        # Make it scrollable
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll_widget = QWidget()
+        scroll_widget.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(scroll_widget)
+        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(16)
+        scroll.setWidget(scroll_widget)
+        page_layout.addWidget(scroll)
 
+        # ── Header Card ────────────────────────────────────────────────────
+        hdr = QFrame()
+        hdr.setStyleSheet("QFrame { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #0A1220,stop:1 #0D1A2E); border: 1px solid rgba(56,189,248,0.12); border-radius: 18px; }")
+        hdr_layout = QHBoxLayout(hdr)
+        hdr_layout.setContentsMargins(22, 14, 22, 14)
+        title_vb = QVBoxLayout()
+        title_vb.setSpacing(3)
+        title = QLabel("⚙️ الإعدادات والتجربة")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #F1F5F9;")
+        sub = QLabel("ضبط خيارات التطبيق واختبار شاشات التذكير الصحية")
+        sub.setStyleSheet("color: #64748B; font-size: 13px;")
+        title_vb.addWidget(title)
+        title_vb.addWidget(sub)
+        hdr_layout.addLayout(title_vb)
+        hdr_layout.addStretch()
+        layout.addWidget(hdr)
+
+        # ── General Options Card ────────────────────────────────────────────
         opts_card = QFrame()
         opts_card.setObjectName("Card")
         opts_layout = QVBoxLayout(opts_card)
-        opts_layout.setSpacing(15)
+        opts_layout.setContentsMargins(22, 18, 22, 18)
+        opts_layout.setSpacing(14)
 
-        self.chk_startup = QCheckBox("التشغيل التلقائي مع إقلاع الجهاز (Windows Startup)")
+        opts_lbl = QLabel("🔧 الخيارات العامة")
+        opts_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #38BDF8;")
+        opts_layout.addWidget(opts_lbl)
+
+        self.chk_startup = QCheckBox("🚀 التشغيل التلقائي مع إقلاع الجهاز (Windows Startup)")
         self.chk_startup.setChecked(self.cfg_mgr.is_startup_enabled())
         self.chk_startup.toggled.connect(self.toggle_startup)
 
-        self.chk_sound = QCheckBox("تفعيل الأصوات والتنبيهات الصوتية المتكررة")
+        self.chk_sound = QCheckBox("🔔 تفعيل الأصوات والتنبيهات الصوتية المتكررة")
         self.chk_sound.setChecked(self.config.get("sound_enabled", True))
         self.chk_sound.toggled.connect(self.toggle_sound)
 
         opts_layout.addWidget(self.chk_startup)
         opts_layout.addWidget(self.chk_sound)
-
         layout.addWidget(opts_card)
 
-        # Custom Interval Settings Card
+        # ── Interval Settings Card ──────────────────────────────────────────
         interval_card = QFrame()
         interval_card.setObjectName("Card")
         interval_layout = QVBoxLayout(interval_card)
+        interval_layout.setContentsMargins(22, 18, 22, 18)
         interval_layout.setSpacing(14)
 
-        interval_title = QLabel("⏱️ تحديد مواعيد وتكرار التذكيرات الصحية")
-        interval_title.setObjectName("CardTitle")
+        interval_title = QLabel("⏱️ تكرار التذكيرات الصحية")
+        interval_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #38BDF8;")
         interval_layout.addWidget(interval_title)
 
         interval_row = QHBoxLayout()
         interval_row.setSpacing(20)
 
-        # Water Interval
         water_box = QVBoxLayout()
-        water_box.addWidget(QLabel("💧 تذكير شرب الماء:"))
+        water_box.setSpacing(6)
+        wl = QLabel("💧 تذكير شرب الماء:")
+        wl.setStyleSheet("font-size: 14px; color: #CBD5E1;")
+        water_box.addWidget(wl)
         self.cmb_water_interval = QComboBox()
         for m in [15, 20, 30, 40, 50, 60, 90]:
             self.cmb_water_interval.addItem(f"كل {m} دقيقة", m)
-
         curr_w = self.config.get("water_interval_min", 40)
         idx_w = self.cmb_water_interval.findData(curr_w)
         if idx_w != -1:
@@ -1293,13 +1580,14 @@ class MainWindow(QMainWindow):
         self.cmb_water_interval.currentIndexChanged.connect(self.change_water_interval)
         water_box.addWidget(self.cmb_water_interval)
 
-        # Pushups Interval
         pushups_box = QVBoxLayout()
-        pushups_box.addWidget(QLabel("🏋️ تذكير تمارين الضغط والرياضة:"))
+        pushups_box.setSpacing(6)
+        pl = QLabel("🏋️ تذكير تمارين الرياضة:")
+        pl.setStyleSheet("font-size: 14px; color: #CBD5E1;")
+        pushups_box.addWidget(pl)
         self.cmb_pushups_interval = QComboBox()
         for m in [30, 45, 60, 90, 120, 180]:
             self.cmb_pushups_interval.addItem(f"كل {m} دقيقة", m)
-
         curr_p = self.config.get("pushups_interval_min", 120)
         idx_p = self.cmb_pushups_interval.findData(curr_p)
         if idx_p != -1:
@@ -1310,32 +1598,37 @@ class MainWindow(QMainWindow):
         interval_row.addLayout(water_box)
         interval_row.addLayout(pushups_box)
         interval_layout.addLayout(interval_row)
-
         layout.addWidget(interval_card)
 
-        # Test Center
+        # ── Test Center Card ────────────────────────────────────────────────
         test_card = QFrame()
         test_card.setObjectName("Card")
         test_layout = QVBoxLayout(test_card)
-        test_layout.setSpacing(15)
+        test_layout.setContentsMargins(22, 18, 22, 18)
+        test_layout.setSpacing(14)
 
-        test_title = QLabel("🎯 تجربة شاشات التنبيه فوراً")
-        test_title.setObjectName("CardTitle")
-
-        test_desc = QLabel("يمكنك اختبار شكل شاشة شرب الماء وشاشة التمارين المتنوعة فوراً.")
-        test_desc.setStyleSheet("color: #94A3B8; font-size: 15px;")
+        test_title = QLabel("🎯 تجربة شاشات التنبيه")
+        test_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #38BDF8;")
+        test_desc = QLabel("اختبر شاشات التذكير الصحية مباشرةً من هنا.")
+        test_desc.setStyleSheet("color: #64748B; font-size: 13px;")
 
         btn_box = QHBoxLayout()
-        btn_box.setSpacing(15)
+        btn_box.setSpacing(12)
 
-        btn_test_water = QPushButton("💧 تجربة شاشة شرب الماء الان")
+        btn_test_water = QPushButton("💧 تجربة شاشة شرب الماء")
         btn_test_water.setObjectName("PrimaryBtn")
         btn_test_water.setCursor(Qt.PointingHandCursor)
         btn_test_water.clicked.connect(self.test_water_overlay)
 
-        btn_test_pushups = QPushButton("🏋️ تجربة تمرين رياضه الان (متنوع)")
+        btn_test_pushups = QPushButton("🏋️ تجربة تمرين رياضي (متنوع)")
         btn_test_pushups.setObjectName("PrimaryBtn")
-        btn_test_pushups.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #EA580C, stop:1 #C2410C); border: 1px solid #F97316;")
+        btn_test_pushups.setStyleSheet("""
+            QPushButton#PrimaryBtn {
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #C2410C,stop:1 #EA580C);
+                border-color: #F97316;
+            }
+            QPushButton#PrimaryBtn:hover { background: #EA580C; }
+        """)
         btn_test_pushups.setCursor(Qt.PointingHandCursor)
         btn_test_pushups.clicked.connect(self.test_pushups_overlay)
 
@@ -1345,29 +1638,34 @@ class MainWindow(QMainWindow):
         test_layout.addWidget(test_title)
         test_layout.addWidget(test_desc)
         test_layout.addLayout(btn_box)
-
         layout.addWidget(test_card)
 
-        # Reset Progress Section
+        # ── Reset Progress (Danger Zone) ────────────────────────────────────
         reset_card = QFrame()
-        reset_card.setObjectName("Card")
-        reset_card.setStyleSheet("background-color: #111827; border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 20px; padding: 22px;")
+        reset_card.setObjectName("DangerCard")
         reset_layout = QVBoxLayout(reset_card)
-        reset_layout.setSpacing(12)
+        reset_layout.setContentsMargins(22, 18, 22, 18)
+        reset_layout.setSpacing(10)
 
-        reset_title = QLabel("🔄 إعادة تعيين النقاط والتقدم")
-        reset_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #EF4444;")
-        
-        reset_desc = QLabel("تصفير كافة النقاط، الأوسمة، وإحصائيات التقدم والبدء من جديد من رانك 'مبتدئ أول'.")
-        reset_desc.setStyleSheet("color: #94A3B8; font-size: 14px;")
+        danger_hdr = QHBoxLayout()
+        danger_icon = QLabel("⚠️")
+        danger_icon.setStyleSheet("font-size: 20px;")
+        reset_title = QLabel("منطقة الخطر — إعادة تعيين التقدم")
+        reset_title.setStyleSheet("font-size: 17px; font-weight: bold; color: #EF4444;")
+        danger_hdr.addWidget(danger_icon)
+        danger_hdr.addWidget(reset_title)
+        danger_hdr.addStretch()
+        reset_layout.addLayout(danger_hdr)
 
-        btn_reset_progress = QPushButton("🔄 إعادة تعيين التقدم والنقاط من البداية")
+        reset_desc = QLabel("تصفير كافة النقاط، الأوسمة، وإحصائيات التقدم والبدء من جديد من رانك 'مبتدئ أول'. لا يمكن التراجع عن هذا الإجراء.")
+        reset_desc.setStyleSheet("color: #64748B; font-size: 13px;")
+        reset_desc.setWordWrap(True)
+        reset_layout.addWidget(reset_desc)
+
+        btn_reset_progress = QPushButton("🔄 إعادة تعيين كل التقدم والنقاط")
         btn_reset_progress.setObjectName("FinishBtn")
         btn_reset_progress.setCursor(Qt.PointingHandCursor)
         btn_reset_progress.clicked.connect(self.reset_user_progress)
-
-        reset_layout.addWidget(reset_title)
-        reset_layout.addWidget(reset_desc)
         reset_layout.addWidget(btn_reset_progress)
 
         layout.addWidget(reset_card)
@@ -1933,19 +2231,37 @@ class MainWindow(QMainWindow):
 
     def update_status_ui(self, active: bool):
         if active:
-            self.status_card.setStyleSheet("background-color: #111827; border-left: 6px solid #10B981;")
-            self.lbl_status_title.setText("حالة جلسة التعلم: نشطة ⚡ (الحظر مفعل)")
-            self.lbl_status_title.setStyleSheet("font-size: 24px; font-weight: bold; color: #10B981;")
-            self.lbl_status_desc.setText("يتم حظر جميع التطبيقات الممنوعة حالياً لزيادة إنتاجيتك!")
-            
+            self.status_card.setStyleSheet("""
+                QFrame {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #071E10, stop:1 #0A2618);
+                    border: 1px solid rgba(16, 185, 129, 0.3);
+                    border-left: 4px solid #10B981;
+                    border-radius: 18px;
+                }
+            """)
+            self.lbl_status_dot.setStyleSheet("font-size: 18px; color: #10B981;")
+            self.lbl_status_title.setText("⚡ جلسة التعلم نشطة — الحظر مفعّل")
+            self.lbl_status_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #34D399;")
+            self.lbl_status_desc.setText("يتم حظر جميع التطبيقات والمواقع الممنوعة حالياً لزيادة إنتاجيتك!")
+            self.lbl_status_desc.setStyleSheet("font-size: 13px; color: #6EE7B7;")
             self.btn_start_learning.setVisible(False)
             self.btn_finish_learning.setVisible(True)
         else:
-            self.status_card.setStyleSheet("background-color: #111827; border-left: 6px solid #64748B;")
+            self.status_card.setStyleSheet("""
+                QFrame {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #0B1929, stop:1 #0D1F33);
+                    border: 1px solid rgba(100, 116, 139, 0.3);
+                    border-left: 4px solid #475569;
+                    border-radius: 18px;
+                }
+            """)
+            self.lbl_status_dot.setStyleSheet("font-size: 18px; color: #475569;")
             self.lbl_status_title.setText("حالة جلسة التعلم: غير نشطة")
-            self.lbl_status_title.setStyleSheet("font-size: 24px; font-weight: bold; color: #94A3B8;")
-            self.lbl_status_desc.setText("يمكنك استخدام الجهاز بحرية. عند بدء التعلم اضغط الزر أدناه.")
-
+            self.lbl_status_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #94A3B8;")
+            self.lbl_status_desc.setText("عند بدء التعلم، يتم حظر التطبيقات والمواقع الممنوعة تلقائياً لحمايتك من التشتت.")
+            self.lbl_status_desc.setStyleSheet("font-size: 13px; color: #64748B;")
             self.btn_start_learning.setVisible(True)
             self.btn_finish_learning.setVisible(False)
 
