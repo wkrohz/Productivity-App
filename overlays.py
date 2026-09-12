@@ -112,14 +112,19 @@ class StartScheduleOverlayWindow(QWidget):
     def confirm_action(self):
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
+        self.close()
+
+    def closeEvent(self, event):
+        """يُستدعى دائماً عند الإغلاق."""
+        if self.audio_mgr:
+            self.audio_mgr.stop_alarm()
         if self.on_confirm_callback:
             self.on_confirm_callback()
-        self.close()
+        self.on_confirm_callback = None
+        super().closeEvent(event)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_F4 and (event.modifiers() & Qt.AltModifier):
-            if self.audio_mgr:
-                self.audio_mgr.stop_alarm()
             self.close()
         else:
             super().keyPressEvent(event)
@@ -227,14 +232,19 @@ class WaterOverlayWindow(QWidget):
     def finish_action(self):
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
+        self.close()
+
+    def closeEvent(self, event):
+        """يُستدعى دائماً عند الإغلاق — سواء بالزر أو Alt+F4 — لإعادة تعيين الـ flag."""
+        if self.audio_mgr:
+            self.audio_mgr.stop_alarm()
         if self.on_finish_callback:
             self.on_finish_callback("water")
-        self.close()
+        self.on_finish_callback = None  # منع الاستدعاء المزدوج
+        super().closeEvent(event)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_F4 and (event.modifiers() & Qt.AltModifier):
-            if self.audio_mgr:
-                self.audio_mgr.stop_alarm()
             self.close()
         else:
             super().keyPressEvent(event)
@@ -345,14 +355,19 @@ class PushupsOverlayWindow(QWidget):
     def finish_action(self):
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
+        self.close()
+
+    def closeEvent(self, event):
+        """يُستدعى دائماً عند الإغلاق — سواء بالزر أو Alt+F4."""
+        if self.audio_mgr:
+            self.audio_mgr.stop_alarm()
         if self.on_finish_callback:
             self.on_finish_callback("pushups")
-        self.close()
+        self.on_finish_callback = None
+        super().closeEvent(event)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_F4 and (event.modifiers() & Qt.AltModifier):
-            if self.audio_mgr:
-                self.audio_mgr.stop_alarm()
             self.close()
         else:
             super().keyPressEvent(event)

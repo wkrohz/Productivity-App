@@ -54,6 +54,11 @@ class MainWindow(QMainWindow):
         self.pushups_timer_counter = 0
         self.last_triggered_schedule_key = ""
 
+        # ✅ منع تكرار شاشات التذكير
+        self._water_overlay_open = False
+        self._pushups_overlay_open = False
+        self._schedule_overlay_open = False
+
         self.setWindowTitle("مركز الإنتاجية الذكي | Productivity Hub")
         self.resize(1080, 740)
         self.setMinimumSize(940, 660)
@@ -906,18 +911,36 @@ class MainWindow(QMainWindow):
         self.cfg_mgr.save_config()
 
     def test_water_overlay(self):
-        self.water_overlay = WaterOverlayWindow(audio_mgr=self.audio_mgr, on_finish_callback=self.handle_overlay_finish)
+        """تفتح شاشة الماء — لكن فقط إذا ما كانت مفتوحة بالفعل."""
+        if self._water_overlay_open:
+            return
+        self._water_overlay_open = True
+        self.water_overlay = WaterOverlayWindow(
+            audio_mgr=self.audio_mgr,
+            on_finish_callback=self.handle_overlay_finish
+        )
 
     def test_pushups_overlay(self):
-        self.pushups_overlay = PushupsOverlayWindow(audio_mgr=self.audio_mgr, on_finish_callback=self.handle_overlay_finish)
+        """تفتح شاشة البوش-أب — لكن فقط إذا ما كانت مفتوحة بالفعل."""
+        if self._pushups_overlay_open:
+            return
+        self._pushups_overlay_open = True
+        self.pushups_overlay = PushupsOverlayWindow(
+            audio_mgr=self.audio_mgr,
+            on_finish_callback=self.handle_overlay_finish
+        )
 
     def handle_overlay_finish(self, overlay_type):
         if overlay_type == "water":
+            self._water_overlay_open = False
             self.config["daily_stats"]["water_count"] += 1
             self.lbl_stat_water.setText(f"{self.config['daily_stats']['water_count']} أكواب")
         elif overlay_type == "pushups":
+            self._pushups_overlay_open = False
             self.config["daily_stats"]["pushups_count"] += 5
             self.lbl_stat_pushups.setText(f"{self.config['daily_stats']['pushups_count']} ضغطات")
+        elif overlay_type == "schedule":
+            self._schedule_overlay_open = False
         self.cfg_mgr.save_config()
 
     # Background Timers
@@ -933,20 +956,27 @@ class MainWindow(QMainWindow):
     def check_processes_loop(self):
         now_str = QTime.currentTime().toString("hh:mm")
 
-        for sched in self.config.get("learning_schedules", []):
-            if sched.get("active", True) and sched["start"] == now_str:
-                sched_key = f"{sched['name']}_{now_str}"
-                if self.last_triggered_schedule_key != sched_key:
-                    self.last_triggered_schedule_key = sched_key
-                    self.sched_overlay = StartScheduleOverlayWindow(
-                        sched_name=sched["name"],
-                        audio_mgr=self.audio_mgr,
-                        on_confirm_callback=self.start_manual_session
-                    )
-                    break
+        if not self._schedule_overlay_open:
+            for sched in self.config.get("learning_schedules", []):
+                if sched.get("active", True) and sched["start"] == now_str:
+                    sched_key = f"{sched['name']}_{now_str}"
+                    if self.last_triggered_schedule_key != sched_key:
+                        self.last_triggered_schedule_key = sched_key
+                        self._schedule_overlay_open = True
+                        self.sched_overlay = StartScheduleOverlayWindow(
+                            sched_name=sched["name"],
+                            audio_mgr=self.audio_mgr,
+                            on_confirm_callback=self._on_schedule_confirmed
+                        )
+                        break
 
         if self.config.get("manual_session_active", False) or self.app_blocker.is_active:
             self.app_blocker.check_and_enforce()
+
+    def _on_schedule_confirmed(self):
+        """يُستدعى عند الضغط على 'حسناً' في شاشة بدء الجدول."""
+        self._schedule_overlay_open = False
+        self.start_manual_session()
 
     def minute_tick_loop(self):
         if self.app_blocker.is_active:
@@ -957,13 +987,16 @@ class MainWindow(QMainWindow):
         self.water_timer_counter += 1
         self.pushups_timer_counter += 1
 
+        # ✅ فقط إذا ما كانت شاشة مفتوحة بالفعل
         if self.water_timer_counter >= self.config.get("water_interval_min", 40):
             self.water_timer_counter = 0
-            self.test_water_overlay()
+            if not self._water_overlay_open:
+                self.test_water_overlay()
 
         if self.pushups_timer_counter >= self.config.get("pushups_interval_min", 120):
             self.pushups_timer_counter = 0
-            self.test_pushups_overlay()
+            if not self._pushups_overlay_open:
+                self.test_pushups_overlay()
 
     # System Tray
     def setup_system_tray(self):
