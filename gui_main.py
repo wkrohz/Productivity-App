@@ -141,6 +141,8 @@ class MainWindow(QMainWindow):
 
         self.current_task_filter = "all"
         self.current_badge_filter = "all"
+        self._prayer_overlay_open = False
+        self.current_portfolio_folder_id = None
 
         self.setWindowTitle("انتاجيتي | مركز الإنتاجية الذكي")
         self.resize(1200, 820)
@@ -3074,7 +3076,7 @@ class MainWindow(QMainWindow):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
-        if self.current_portfolio_folder_id is not None:
+        if getattr(self, "current_portfolio_folder_id", None) is not None:
             btn_back = QPushButton("⬅️ الرجوع للمجلدات الرئيسية")
             btn_back.setStyleSheet("background: rgba(255,255,255,0.1); color: #E2E8F0; font-weight: bold; border-radius: 12px; padding: 10px 18px;")
             btn_back.setCursor(Qt.PointingHandCursor)
@@ -3098,7 +3100,7 @@ class MainWindow(QMainWindow):
 
         folders = self.config.get("portfolio_folders", [])
 
-        if self.current_portfolio_folder_id is None:
+        if getattr(self, "current_portfolio_folder_id", None) is None:
             sec_title = QLabel("📂 المجلدات الرئيسية للإنجازات:")
             sec_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #38BDF8;")
             self.portfolio_layout.addWidget(sec_title)
