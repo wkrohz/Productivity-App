@@ -4,7 +4,8 @@ import datetime
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QListWidget, QListWidgetItem, QLineEdit, QComboBox, QCheckBox,
-    QStackedWidget, QFrame, QDialog, QMessageBox, QSystemTrayIcon, QMenu, QSizePolicy, QProgressBar
+    QStackedWidget, QFrame, QDialog, QMessageBox, QSystemTrayIcon, QMenu, QSizePolicy, QProgressBar,
+    QGridLayout, QScrollArea
 )
 from PySide6.QtCore import Qt, QTime, QTimer, QSize
 from PySide6.QtGui import QFont, QIcon, QPixmap, QColor, QAction
@@ -28,6 +29,69 @@ def format_12h(time_str):
         return f"{h_12:02d}:{m:02d} {am_pm}"
     except Exception:
         return time_str
+
+RANKS = [
+    (0,     "مبتدئ أول 🥉", "#94A3B8", "بداية الرحلة والالتزام 🌱"),
+    (50,    "مبتدئ ثاني 🥉", "#94A3B8", "خطوات ثابتة نحو النجاح 🚶‍♂️"),
+    (100,   "مبتدئ ثالث 🥉", "#94A3B8", "تأسيس عادة التركيز اليومية 🎯"),
+    (150,   "متقدم أول 🥈", "#38BDF8", "انطلاقة قوية وزيادة الإنتاجية 🚀"),
+    (250,   "متقدم ثاني 🥈", "#38BDF8", "تجاوز المشتتات بثقة 💪"),
+    (350,   "متقدم ثالث 🥈", "#38BDF8", "إتقان إدارة الوقت والجهد ⏱️"),
+    (500,   "مجتهد أول 🥇", "#F59E0B", "التزام عالي وأثر ملموس 🌟"),
+    (700,   "مجتهد ثاني 🥇", "#F59E0B", "شغف متواصل بدون توقف 🔥"),
+    (900,   "مجتهد ثالث 🥇", "#F59E0B", "نموذج يُحتذى به في الانضباط 🏆"),
+    (1200,  "متفوق أول 💠", "#A855F7", "تركيز عميق وإنجازات متتالية 💎"),
+    (1600,  "متفوق ثاني 💠", "#A855F7", "قوة إرادة وصمود في وجه التشتت 🛡️"),
+    (2000,  "متفوق ثالث 💠", "#A855F7", "أداء استثنائي يتجاوز التوقعات ⚡"),
+    (2500,  "نخبة أول 👑", "#EC4899", "المربع الذهبي للإنتاجية العالية 👑"),
+    (3200,  "نخبة ثاني 👑", "#EC4899", "إتقان شامل واستمرارية بلا استسلام 🛡️"),
+    (4000,  "نخبة ثالث 👑", "#EC4899", "من القلائل الذين وصلوا لهذه المهارة 🔥"),
+    (5000,  "قدوة عظيمة 🌟", "#EAB308", "مكانة رفيعة وإنجاز يومي مبهر 🌟"),
+    (7000,  "قدوة تاريخية 🌌", "#3B82F6", "رمز حقيقي للتركيز والمثابرة 🌌"),
+    (10000, "قدوة اسطورية ⚡", "#EF4444", "قمة المجد! أسطورة خالدة في الإنتاجية 👑⚡"),
+]
+
+ALL_BADGES = [
+    # 💧 قسم الماء (6 أوسمة)
+    {"id": "b_water_1", "cat": "water", "title": "💧 قطرة البداية",        "desc": "شرب 3 أكواب ماء في يوم واحد",     "pts": 20,  "water_min": 3},
+    {"id": "b_water_2", "cat": "water", "title": "🚿 المنتعش",              "desc": "شرب 6 أكواب في يوم واحد",         "pts": 40,  "water_min": 6},
+    {"id": "b_water_3", "cat": "water", "title": "🌊 نهر الانتعاش",         "desc": "شرب 20 كوب إجمالاً",              "pts": 80,  "water_total": 20},
+    {"id": "b_water_4", "cat": "water", "title": "🐳 محيط الهيدرات",        "desc": "شرب 50 كوب إجمالاً",              "pts": 150, "water_total": 50},
+    {"id": "b_water_5", "cat": "water", "title": "🌍 بحر الصحة",            "desc": "شرب 100 كوب إجمالاً",             "pts": 280, "water_total": 100},
+    {"id": "b_water_6", "cat": "water", "title": "🔱 سيد المياه الأبدي",    "desc": "شرب 250 كوب إجمالاً",             "pts": 500, "water_total": 250},
+
+    # 🏋️ قسم التمارين (6 أوسمة)
+    {"id": "b_pushups_1", "cat": "pushups", "title": "🏋️ الدفعة الأولى",   "desc": "إنجاز 10 ضغطات في جلسة واحدة",   "pts": 25,  "pushups_min": 10},
+    {"id": "b_pushups_2", "cat": "pushups", "title": "💪 عضلات من حديد",    "desc": "إنجاز 30 ضغطة في جلسة واحدة",     "pts": 50,  "pushups_min": 30},
+    {"id": "b_pushups_3", "cat": "pushups", "title": "🥊 المقاتل الصلب",    "desc": "إنجاز 100 ضغطة إجمالاً",           "pts": 120, "pushups_total": 100},
+    {"id": "b_pushups_4", "cat": "pushups", "title": "🦾 أسد القوة",        "desc": "إنجاز 300 ضغطة إجمالاً",           "pts": 250, "pushups_total": 300},
+    {"id": "b_pushups_5", "cat": "pushups", "title": "🏆 وحش اللياقة",      "desc": "إنجاز 750 ضغطة إجمالاً",           "pts": 450, "pushups_total": 750},
+    {"id": "b_pushups_6", "cat": "pushups", "title": "⚡ إله التمارين",      "desc": "إنجاز 1500 ضغطة إجمالاً",          "pts": 800, "pushups_total": 1500},
+
+    # 🎓 قسم التعلم والتركيز (7 أوسمة)
+    {"id": "b_learn_1", "cat": "learn", "title": "🎓 شرارة التركيز",        "desc": "30 دقيقة تعلم في يوم واحد",       "pts": 30,  "learn_day": 30},
+    {"id": "b_learn_2", "cat": "learn", "title": "📖 الطالب المجتهد",       "desc": "60 دقيقة تعلم في يوم واحد",       "pts": 60,  "learn_day": 60},
+    {"id": "b_learn_3", "cat": "learn", "title": "🧠 عقل من نار",           "desc": "120 دقيقة تعلم في يوم واحد",      "pts": 120, "learn_day": 120},
+    {"id": "b_learn_4", "cat": "learn", "title": "🚀 المتعلم الشغوف",       "desc": "300 دقيقة تعلم إجمالاً (5 ساعات)","pts": 200, "learn_total": 300},
+    {"id": "b_learn_5", "cat": "learn", "title": "🌌 عقلية العلماء",        "desc": "1200 دقيقة (20 ساعة) إجمالاً",    "pts": 450, "learn_total": 1200},
+    {"id": "b_learn_6", "cat": "learn", "title": "👁️ سيد المعرفة",          "desc": "3000 دقيقة (50 ساعة) إجمالاً",    "pts": 900, "learn_total": 3000},
+    {"id": "b_learn_7", "cat": "learn", "title": "🌟 أسطورة التعلم",        "desc": "6000 دقيقة (100 ساعة) إجمالاً",   "pts": 1500,"learn_total": 6000},
+
+    # 📋 قسم المهام (6 أوسمة)
+    {"id": "b_tasks_1", "cat": "tasks", "title": "📝 خطوة الألف ميل",       "desc": "إكمال أول مهمة يومية",            "pts": 20,  "tasks_done": 1},
+    {"id": "b_tasks_2", "cat": "tasks", "title": "✅ منجز اليوم",            "desc": "إكمال 5 مهام في يوم واحد",         "pts": 50,  "tasks_done": 5},
+    {"id": "b_tasks_3", "cat": "tasks", "title": "📋 قاهر المهام",           "desc": "إكمال 10 مهام إجمالاً",            "pts": 100, "tasks_total": 10},
+    {"id": "b_tasks_4", "cat": "tasks", "title": "🎯 قناص الأهداف",          "desc": "إكمال 30 مهمة إجمالاً",            "pts": 250, "tasks_total": 30},
+    {"id": "b_tasks_5", "cat": "tasks", "title": "🔥 آلة الإنجاز",           "desc": "إكمال 75 مهمة إجمالاً",            "pts": 450, "tasks_total": 75},
+    {"id": "b_tasks_6", "cat": "tasks", "title": "👑 ملك الإنجاز الأبدي",   "desc": "إكمال 200 مهمة إجمالاً",           "pts": 800, "tasks_total": 200},
+
+    # ⚡ قسم النقاط والرانك (5 أوسمة خاصة)
+    {"id": "b_score_1",  "cat": "score", "title": "🌱 أول خطوة",            "desc": "جمع 50 نقطة",                       "pts": 0,   "score_min": 50},
+    {"id": "b_score_2",  "cat": "score", "title": "🔥 ثلاثمئة نقطة",        "desc": "جمع 300 نقطة إجمالاً",             "pts": 0,   "score_min": 300},
+    {"id": "b_score_3",  "cat": "score", "title": "💎 نادي الألف",           "desc": "جمع 1000 نقطة إجمالاً",            "pts": 0,   "score_min": 1000},
+    {"id": "b_score_4",  "cat": "score", "title": "👑 سيد النقاط",          "desc": "جمع 5000 نقطة إجمالاً",            "pts": 0,   "score_min": 5000},
+    {"id": "b_score_5",  "cat": "score", "title": "🌌 اسطورة الأوسمة",     "desc": "جمع 10000 نقطة إجمالاً",           "pts": 0,   "score_min": 10000},
+]
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -60,6 +124,7 @@ class MainWindow(QMainWindow):
         self._schedule_overlay_open = False
 
         self.current_task_filter = "all"
+        self.current_badge_filter = "all"
 
         self.setWindowTitle("مركز الإنتاجية الذكي | Productivity Hub")
         self.resize(1080, 740)
@@ -683,90 +748,225 @@ class MainWindow(QMainWindow):
     # Page 1.8: Analytics & Gamification Showcase
     def create_analytics_page(self):
         page = QWidget()
-        layout = QVBoxLayout(page)
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
+
+        # Scroll Area to hold everything
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; } QScrollBar:vertical { background: #0B0F19; width: 8px; border-radius: 4px; } QScrollBar::handle:vertical { background: #1F293D; border-radius: 4px; } QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }")
+
+        scroll_widget = QWidget()
+        scroll_widget.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(scroll_widget)
         layout.setContentsMargins(32, 28, 32, 28)
-        layout.setSpacing(18)
+        layout.setSpacing(20)
 
-        # Header Title
+        scroll.setWidget(scroll_widget)
+        page_layout.addWidget(scroll)
+
+        # ── Header ──────────────────────────────────────────────────────────
         title_box = QHBoxLayout()
-        trophy_pix = get_tinted_pixmap("bullseye-arrowlogo.png", "#F59E0B", QSize(36, 36))
-        if not trophy_pix.isNull():
-            ic_lbl = QLabel()
-            ic_lbl.setPixmap(trophy_pix)
-            title_box.addWidget(ic_lbl)
-
-        title = QLabel("🏆 إحصائياتك وشارات الإنجاز")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #F8FAFC;")
+        title = QLabel("🏆 مركز الإنجاز والأوسمة")
+        title.setStyleSheet("font-size: 26px; font-weight: bold; color: #F8FAFC;")
         title_box.addWidget(title)
         title_box.addStretch()
-
         layout.addLayout(title_box)
 
-        # Gamification Score Card
-        score_card = QFrame()
-        score_card.setObjectName("Card")
-        score_card.setStyleSheet("background-color: #111827; border-left: 6px solid #F59E0B;")
-        sc_layout = QHBoxLayout(score_card)
+        desc = QLabel("تابع رانكك، نقاطك، وأوسمة إنجازك. كل عمل صغير يصنع فرقاً كبيراً! 🚀")
+        desc.setStyleSheet("color: #94A3B8; font-size: 15px;")
+        layout.addWidget(desc)
 
-        sc_info = QVBoxLayout()
-        self.lbl_user_score_title = QLabel("⚡ نقاط الإنتاجية والتركيز")
-        self.lbl_user_score_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #F59E0B;")
-        
-        self.lbl_user_score_value = QLabel(f"{self.config.get('user_score', 0)} نقطة")
-        self.lbl_user_score_value.setStyleSheet("font-size: 32px; font-weight: bold; color: #F8FAFC;")
+        # ── Rank & Score Card ────────────────────────────────────────────────
+        rank_card = QFrame()
+        rank_card.setObjectName("Card")
+        rank_card.setStyleSheet("""
+            QFrame#Card {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #1A1040, stop:0.5 #111827, stop:1 #0F1C2E);
+                border: 1px solid #2D3A50;
+                border-radius: 20px;
+            }
+        """)
+        rc_layout = QVBoxLayout(rank_card)
+        rc_layout.setContentsMargins(26, 22, 26, 22)
+        rc_layout.setSpacing(14)
 
-        sc_info.addWidget(self.lbl_user_score_title)
-        sc_info.addWidget(self.lbl_user_score_value)
+        # Top row: score + rank badge
+        top_row = QHBoxLayout()
 
-        # Level Badge
-        sc_level_box = QVBoxLayout()
-        sc_level_box.setAlignment(Qt.AlignCenter)
-        self.lbl_level_badge = QLabel("المستوى 1: مبتدئ نشيط 🌱")
-        self.lbl_level_badge.setStyleSheet("background-color: rgba(245, 158, 11, 0.18); color: #F59E0B; border: 1px solid #F59E0B; font-size: 16px; font-weight: bold; border-radius: 12px; padding: 10px 20px;")
-        sc_level_box.addWidget(self.lbl_level_badge)
+        score_vbox = QVBoxLayout()
+        score_label_title = QLabel("⚡ نقاط الإنتاجية")
+        score_label_title.setStyleSheet("font-size: 15px; color: #94A3B8; font-weight: bold;")
+        self.lbl_user_score_value = QLabel(f"{self.config.get('user_score', 0)}")
+        self.lbl_user_score_value.setStyleSheet("font-size: 52px; font-weight: bold; color: #F59E0B;")
+        score_pts_lbl = QLabel("نقطة")
+        score_pts_lbl.setStyleSheet("font-size: 18px; color: #94A3B8;")
+        score_vbox.addWidget(score_label_title)
+        score_vbox.addWidget(self.lbl_user_score_value)
+        score_vbox.addWidget(score_pts_lbl)
 
-        sc_layout.addLayout(sc_info)
-        sc_layout.addStretch()
-        sc_layout.addLayout(sc_level_box)
+        top_row.addLayout(score_vbox)
+        top_row.addStretch()
 
-        layout.addWidget(score_card)
+        rank_vbox = QVBoxLayout()
+        rank_vbox.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        rank_lbl_title = QLabel("🎖️ رانكك الحالي")
+        rank_lbl_title.setStyleSheet("font-size: 14px; color: #94A3B8; text-align: right;")
+        rank_lbl_title.setAlignment(Qt.AlignRight)
+        self.lbl_level_badge = QLabel("مبتدئ أول 🥉")
+        self.lbl_level_badge.setStyleSheet("""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(148,163,184,0.25), stop:1 rgba(148,163,184,0.1));
+            color: #94A3B8;
+            border: 1px solid #94A3B8;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 12px 22px;
+        """)
+        self.lbl_level_badge.setAlignment(Qt.AlignCenter)
+        self.lbl_rank_desc = QLabel("بداية الرحلة والالتزام 🌱")
+        self.lbl_rank_desc.setStyleSheet("font-size: 13px; color: #64748B; text-align: right;")
+        self.lbl_rank_desc.setAlignment(Qt.AlignRight)
+        rank_vbox.addWidget(rank_lbl_title)
+        rank_vbox.addWidget(self.lbl_level_badge)
+        rank_vbox.addWidget(self.lbl_rank_desc)
+        top_row.addLayout(rank_vbox)
 
-        # Weekly Progress & Bar Visualization Card
+        rc_layout.addLayout(top_row)
+
+        # Progress to next rank
+        prog_row = QHBoxLayout()
+        prog_row.setSpacing(10)
+        self.lbl_rank_progress_text = QLabel("التقدم نحو الرانك التالي:")
+        self.lbl_rank_progress_text.setStyleSheet("font-size: 13px; color: #94A3B8;")
+        self.lbl_rank_next_pts = QLabel("")
+        self.lbl_rank_next_pts.setStyleSheet("font-size: 13px; color: #38BDF8; font-weight: bold;")
+        prog_row.addWidget(self.lbl_rank_progress_text)
+        prog_row.addStretch()
+        prog_row.addWidget(self.lbl_rank_next_pts)
+        rc_layout.addLayout(prog_row)
+
+        self.rank_progress_bar = QProgressBar()
+        self.rank_progress_bar.setRange(0, 100)
+        self.rank_progress_bar.setValue(0)
+        self.rank_progress_bar.setStyleSheet("""
+            QProgressBar {
+                background-color: #0B0F19;
+                border: 1px solid #1F293D;
+                border-radius: 10px;
+                height: 18px;
+                text-align: center;
+                color: transparent;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #F59E0B, stop:1 #EF4444);
+                border-radius: 9px;
+            }
+        """)
+        rc_layout.addWidget(self.rank_progress_bar)
+
+        layout.addWidget(rank_card)
+
+        # ── Rank Progression Road Map ────────────────────────────────────────
+        road_card = QFrame()
+        road_card.setObjectName("Card")
+        road_layout = QVBoxLayout(road_card)
+        road_layout.setContentsMargins(22, 18, 22, 18)
+        road_layout.setSpacing(10)
+
+        road_title = QLabel("🗺️ خريطة الرانكات والمستويات")
+        road_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #38BDF8;")
+        road_layout.addWidget(road_title)
+
+        road_subtitle = QLabel("مسيرة الإنجاز من المبتدئ إلى القدوة الأسطورية:")
+        road_subtitle.setStyleSheet("font-size: 13px; color: #64748B;")
+        road_layout.addWidget(road_subtitle)
+
+        # Grid of ranks (3 per row)
+        self.ranks_grid_layout = QGridLayout()
+        self.ranks_grid_layout.setSpacing(8)
+        road_layout.addLayout(self.ranks_grid_layout)
+
+        layout.addWidget(road_card)
+
+        # ── Weekly Progress Card ─────────────────────────────────────────────
         weekly_card = QFrame()
         weekly_card.setObjectName("Card")
         wk_layout = QVBoxLayout(weekly_card)
         wk_layout.setSpacing(14)
 
-        wk_title = QLabel("📊 الإنجاز والتطور الأسبوعي (أخر 7 أيام)")
+        wk_header = QHBoxLayout()
+        wk_title = QLabel("📊 الإنجاز الأسبوعي (آخر 7 أيام)")
         wk_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #38BDF8;")
-        wk_layout.addWidget(wk_title)
-
-        self.lbl_best_day = QLabel("🏆 أفضل يوم إنتاجية هذا الأسبوع: اليوم!")
-        self.lbl_best_day.setStyleSheet("font-size: 15px; color: #10B981; font-weight: bold;")
-        wk_layout.addWidget(self.lbl_best_day)
+        wk_header.addWidget(wk_title)
+        wk_header.addStretch()
+        self.lbl_best_day = QLabel("")
+        self.lbl_best_day.setStyleSheet("font-size: 13px; color: #10B981; font-weight: bold;")
+        wk_header.addWidget(self.lbl_best_day)
+        wk_layout.addLayout(wk_header)
 
         # Weekly Bars Container
-        self.weekly_bars_layout = QHBoxLayout()
-        self.weekly_bars_layout.setSpacing(12)
-        wk_layout.addLayout(self.weekly_bars_layout)
+        bars_container = QWidget()
+        bars_container.setStyleSheet("background: transparent;")
+        self.weekly_bars_layout = QHBoxLayout(bars_container)
+        self.weekly_bars_layout.setSpacing(10)
+        self.weekly_bars_layout.setContentsMargins(0, 0, 0, 0)
+        wk_layout.addWidget(bars_container)
 
         layout.addWidget(weekly_card)
 
-        # Badges Showcase Card
-        badges_card = QFrame()
-        badges_card.setObjectName("Card")
-        bg_layout = QVBoxLayout(badges_card)
-        bg_layout.setSpacing(14)
+        # ── Badges Gallery ───────────────────────────────────────────────────
+        badges_outer = QFrame()
+        badges_outer.setObjectName("Card")
+        badges_outer_layout = QVBoxLayout(badges_outer)
+        badges_outer_layout.setContentsMargins(22, 18, 22, 18)
+        badges_outer_layout.setSpacing(16)
 
-        bg_title = QLabel("🎖️ معرض الأوسمة والتحديات:")
+        bg_header = QHBoxLayout()
+        bg_title = QLabel("🎖️ معرض الأوسمة والتحديات")
         bg_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #F8FAFC;")
-        bg_layout.addWidget(bg_title)
+        bg_header.addWidget(bg_title)
+        bg_header.addStretch()
+        self.lbl_badges_count = QLabel("")
+        self.lbl_badges_count.setStyleSheet("font-size: 14px; color: #10B981; font-weight: bold;")
+        bg_header.addWidget(self.lbl_badges_count)
+        badges_outer_layout.addLayout(bg_header)
 
-        self.badges_grid = QHBoxLayout()
-        self.badges_grid.setSpacing(12)
-        bg_layout.addLayout(self.badges_grid)
+        # Badge filter buttons
+        badge_filter_row = QHBoxLayout()
+        badge_filter_row.setSpacing(8)
+        self.btn_badge_filter_all = QPushButton("الكل")
+        self.btn_badge_filter_water = QPushButton("💧 الماء")
+        self.btn_badge_filter_pushups = QPushButton("🏋️ التمارين")
+        self.btn_badge_filter_learn = QPushButton("🎓 التعلم")
+        self.btn_badge_filter_tasks = QPushButton("📋 المهام")
+        self.btn_badge_filter_score = QPushButton("⚡ النقاط")
 
-        layout.addWidget(badges_card)
+        badge_filters = [
+            (self.btn_badge_filter_all, "all"),
+            (self.btn_badge_filter_water, "water"),
+            (self.btn_badge_filter_pushups, "pushups"),
+            (self.btn_badge_filter_learn, "learn"),
+            (self.btn_badge_filter_tasks, "tasks"),
+            (self.btn_badge_filter_score, "score"),
+        ]
+        for b, f_val in badge_filters:
+            b.setObjectName("FilterBtn")
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda ch, v=f_val: self.set_badge_filter(v))
+            badge_filter_row.addWidget(b)
+        badge_filter_row.addStretch()
+        badges_outer_layout.addLayout(badge_filter_row)
+
+        # Badges Grid (scrollable, 4 per row)
+        self.badges_scroll_grid = QGridLayout()
+        self.badges_scroll_grid.setSpacing(12)
+        badges_outer_layout.addLayout(self.badges_scroll_grid)
+
+        layout.addWidget(badges_outer)
+        layout.addStretch()
 
         self.reload_analytics_ui()
         return page
@@ -1564,32 +1764,52 @@ class MainWindow(QMainWindow):
             self.config["pushups_interval_min"] = val
             self.cfg_mgr.save_config()
 
+    def set_badge_filter(self, filter_val):
+        self.current_badge_filter = filter_val
+        self.reload_analytics_ui()
+
     def award_points(self, amount, reason=""):
         curr = self.config.get("user_score", 0) + amount
         self.config["user_score"] = curr
-        
-        # Unlocked badges evaluation
+
         unlocked = self.config.get("unlocked_badges", [])
-        w_cnt = self.config.get("daily_stats", {}).get("water_count", 0)
-        p_cnt = self.config.get("daily_stats", {}).get("pushups_count", 0)
-        l_min = self.config.get("daily_stats", {}).get("learning_minutes", 0)
-        t_cnt = sum(1 for t in self.config.get("daily_tasks", []) if t.get("completed", False))
+        daily = self.config.get("daily_stats", {})
+        w_cnt  = daily.get("water_count", 0)
+        p_cnt  = daily.get("pushups_count", 0)
+        l_min  = daily.get("learning_minutes", 0)
+        t_done = sum(1 for t in self.config.get("daily_tasks", []) if t.get("completed", False))
+        t_total = self.config.get("total_tasks_done", t_done)  # lifetime total (approximate)
+        w_total = self.config.get("total_water_count", w_cnt)
+        p_total = self.config.get("total_pushups_count", p_cnt)
+        l_total = self.config.get("total_learn_minutes", l_min)
 
-        if w_cnt >= 3 and "b_water_1" not in unlocked:
-            unlocked.append("b_water_1")
-        if w_cnt >= 10 and "b_water_2" not in unlocked:
-            unlocked.append("b_water_2")
-        if p_cnt >= 15 and "b_pushups_1" not in unlocked:
-            unlocked.append("b_pushups_1")
-        if l_min >= 60 and "b_learn_1" not in unlocked:
-            unlocked.append("b_learn_1")
-        if l_min >= 180 and "b_learn_2" not in unlocked:
-            unlocked.append("b_learn_2")
-        if t_cnt >= 3 and "b_tasks_1" not in unlocked:
-            unlocked.append("b_tasks_1")
-        if curr >= 100 and "b_score_100" not in unlocked:
-            unlocked.append("b_score_100")
+        # Update lifetime totals
+        self.config["total_water_count"]    = max(w_total, w_cnt)
+        self.config["total_pushups_count"]  = max(p_total, p_cnt)
+        self.config["total_learn_minutes"]  = max(l_total, l_min)
+        self.config["total_tasks_done"]     = max(t_total, t_done)
 
+        for badge in ALL_BADGES:
+            bid = badge["id"]
+            if bid in unlocked:
+                continue
+            earned = False
+            if "water_min"     in badge and w_cnt  >= badge["water_min"]:    earned = True
+            if "water_total"   in badge and w_total >= badge["water_total"]:  earned = True
+            if "pushups_min"   in badge and p_cnt  >= badge["pushups_min"]:   earned = True
+            if "pushups_total" in badge and p_total >= badge["pushups_total"]: earned = True
+            if "learn_day"     in badge and l_min  >= badge["learn_day"]:     earned = True
+            if "learn_total"   in badge and l_total >= badge["learn_total"]:  earned = True
+            if "tasks_done"    in badge and t_done >= badge["tasks_done"]:    earned = True
+            if "tasks_total"   in badge and t_total >= badge["tasks_total"]:  earned = True
+            if "score_min"     in badge and curr   >= badge["score_min"]:     earned = True
+            if earned:
+                unlocked.append(bid)
+                bonus = badge.get("pts", 0)
+                if bonus > 0:
+                    curr += bonus
+
+        self.config["user_score"] = curr
         self.config["unlocked_badges"] = unlocked
         self.cfg_mgr.save_config()
         self.reload_analytics_ui()
@@ -1599,128 +1819,276 @@ class MainWindow(QMainWindow):
             return
 
         score = self.config.get("user_score", 0)
-        self.lbl_user_score_value.setText(f"{score} نقطة")
+        self.lbl_user_score_value.setText(f"{score}")
 
-        # Determine level
-        if score < 50:
-            level_str = "المستوى 1: مبتدئ نشيط 🌱"
-        elif score < 120:
-            level_str = "المستوى 2: منجز متحفز 🔥"
-        elif score < 250:
-            level_str = "المستوى 3: بطل الإنتاجية ⚡"
-        elif score < 500:
-            level_str = "المستوى 4: أسد التركيز 🦁"
-        else:
-            level_str = "المستوى 5: أسطورة الإنتاجية 👑"
+        # ── Determine current rank ────────────────────────────────────────────
+        current_rank_idx = 0
+        for i, (pts_req, name, color, desc) in enumerate(RANKS):
+            if score >= pts_req:
+                current_rank_idx = i
+            else:
+                break
+
+        rank_pts, rank_name, rank_color, rank_desc = RANKS[current_rank_idx]
+        has_next = current_rank_idx + 1 < len(RANKS)
 
         if hasattr(self, 'lbl_level_badge'):
-            self.lbl_level_badge.setText(level_str)
+            self.lbl_level_badge.setText(rank_name)
+            self.lbl_level_badge.setStyleSheet(f"""
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {rank_color}33, stop:1 {rank_color}11);
+                color: {rank_color};
+                border: 1px solid {rank_color};
+                font-size: 18px;
+                font-weight: bold;
+                border-radius: 14px;
+                padding: 10px 20px;
+            """)
 
-        # Populate Weekly Bars Visualization
+        if hasattr(self, 'lbl_rank_desc'):
+            self.lbl_rank_desc.setText(rank_desc)
+
+        if hasattr(self, 'rank_progress_bar') and hasattr(self, 'lbl_rank_next_pts'):
+            if has_next:
+                next_pts = RANKS[current_rank_idx + 1][0]
+                next_name = RANKS[current_rank_idx + 1][1]
+                prev_pts = rank_pts
+                span = max(next_pts - prev_pts, 1)
+                prog = min(100, int(((score - prev_pts) / span) * 100))
+                self.rank_progress_bar.setValue(prog)
+                self.lbl_rank_next_pts.setText(f"{score}/{next_pts} نقطة لـ {next_name}")
+                self.lbl_rank_progress_text.setText("التقدم نحو الرانك التالي:")
+            else:
+                self.rank_progress_bar.setValue(100)
+                self.lbl_rank_next_pts.setText("🌟 وصلت لأعلى رانك! أنت أسطورة!")
+                self.lbl_rank_progress_text.setText("")
+
+        # ── Ranks Grid ────────────────────────────────────────────────────────
+        if hasattr(self, 'ranks_grid_layout'):
+            # Clear old widgets
+            while self.ranks_grid_layout.count():
+                item = self.ranks_grid_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+
+            cols = 6
+            for i, (pts_req, name, color, desc) in enumerate(RANKS):
+                is_reached = score >= pts_req
+                is_current = (i == current_rank_idx)
+
+                r_frame = QFrame()
+                r_frame.setFixedHeight(72)
+                if is_current:
+                    r_frame.setStyleSheet(f"""
+                        background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {color}44, stop:1 {color}22);
+                        border: 2px solid {color};
+                        border-radius: 12px;
+                    """)
+                elif is_reached:
+                    r_frame.setStyleSheet(f"""
+                        background: {color}15;
+                        border: 1px solid {color}66;
+                        border-radius: 12px;
+                    """)
+                else:
+                    r_frame.setStyleSheet("""
+                        background: #0B0F19;
+                        border: 1px solid #1F293D;
+                        border-radius: 12px;
+                    """)
+
+                r_layout = QVBoxLayout(r_frame)
+                r_layout.setContentsMargins(8, 6, 8, 6)
+                r_layout.setSpacing(2)
+
+                lbl_name = QLabel(name)
+                lbl_name.setAlignment(Qt.AlignCenter)
+                lbl_name.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {color if (is_reached or is_current) else '#475569'};")
+                lbl_name.setWordWrap(True)
+
+                lbl_pts = QLabel(f"{pts_req} نقطة" if not is_current else "◀ رانكك")
+                lbl_pts.setAlignment(Qt.AlignCenter)
+                lbl_pts.setStyleSheet(f"font-size: 11px; color: {'#F59E0B' if is_current else ('#64748B' if not is_reached else color)};")
+
+                r_layout.addWidget(lbl_name)
+                r_layout.addWidget(lbl_pts)
+
+                row = i // cols
+                col = i % cols
+                self.ranks_grid_layout.addWidget(r_frame, row, col)
+
+        # ── Weekly Bars ───────────────────────────────────────────────────────
         if hasattr(self, 'weekly_bars_layout'):
             while self.weekly_bars_layout.count():
                 child = self.weekly_bars_layout.takeAt(0)
                 if child.widget():
                     child.widget().deleteLater()
+                elif child.layout():
+                    # Clear nested layout items
+                    while child.layout().count():
+                        sub = child.layout().takeAt(0)
+                        if sub.widget():
+                            sub.widget().deleteLater()
 
             today = datetime.date.today()
             history = self.config.get("weekly_history", {})
             days_arabic = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
-            
+
             max_mins = 1
             daily_data = []
-
             for i in range(6, -1, -1):
                 d = today - datetime.timedelta(days=i)
                 d_str = d.isoformat()
                 day_name = days_arabic[d.weekday()]
-                
                 if d_str == today.isoformat():
                     mins = self.config.get("daily_stats", {}).get("learning_minutes", 0)
                 else:
                     mins = history.get(d_str, {}).get("learning_minutes", 0)
-
                 max_mins = max(max_mins, mins)
                 daily_data.append((day_name, mins, d_str == today.isoformat()))
 
             best_day = max(daily_data, key=lambda x: x[1])
             if hasattr(self, 'lbl_best_day'):
                 if best_day[1] > 0:
-                    self.lbl_best_day.setText(f"🏆 أفضل يوم إنتاجية هذا الأسبوع: {best_day[0]} ({best_day[1]} دقيقة تعلم)")
+                    self.lbl_best_day.setText(f"🏆 {best_day[0]}: {best_day[1]} دقيقة")
                 else:
-                    self.lbl_best_day.setText("🏆 حافظ على استمراريتك في التعلم هذا الأسبوع لتحقق إنجازك!")
+                    self.lbl_best_day.setText("ابدأ التعلم لتسجل أول إنجاز!")
 
             for day_name, mins, is_today in daily_data:
-                col = QVBoxLayout()
-                col.setSpacing(6)
+                col_w = QWidget()
+                col_w.setStyleSheet("background: transparent;")
+                col = QVBoxLayout(col_w)
+                col.setSpacing(5)
                 col.setAlignment(Qt.AlignBottom)
 
-                height_factor = max(30, int((mins / max_mins) * 110))
+                max_bar_h = 120
+                height_factor = max(8, int((mins / max_mins) * max_bar_h)) if max_mins > 0 else 8
                 bar_frame = QFrame()
-                bar_frame.setFixedWidth(38)
+                bar_frame.setFixedWidth(44)
                 bar_frame.setFixedHeight(height_factor)
-                
+
                 if is_today:
                     bar_frame.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #10B981, stop:1 #059669); border-radius: 8px;")
+                elif mins > 0:
+                    bar_frame.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #38BDF8, stop:1 #0284C7); border-radius: 8px;")
                 else:
-                    bar_frame.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0284C7, stop:1 #0369A1); border-radius: 8px;")
+                    bar_frame.setStyleSheet("background: #1F293D; border-radius: 8px;")
 
-                lbl_val = QLabel(f"{mins}م")
+                lbl_val = QLabel(f"{mins}م" if mins > 0 else "-")
                 lbl_val.setAlignment(Qt.AlignCenter)
-                lbl_val.setStyleSheet("font-size: 11px; font-weight: bold; color: #94A3B8;")
+                lbl_val.setStyleSheet("font-size: 11px; font-weight: bold; color: #94A3B8; background: transparent;")
 
                 lbl_day = QLabel(day_name)
                 lbl_day.setAlignment(Qt.AlignCenter)
-                lbl_day.setStyleSheet("font-size: 12px; font-weight: bold; color: " + ("#10B981;" if is_today else "#F8FAFC;"))
+                lbl_day.setStyleSheet("font-size: 11px; font-weight: bold; background: transparent; color: " + ("#10B981;" if is_today else "#94A3B8;"))
 
-                col.addWidget(lbl_val, 0, Qt.AlignCenter)
-                col.addWidget(bar_frame, 0, Qt.AlignCenter)
-                col.addWidget(lbl_day, 0, Qt.AlignCenter)
+                # Spacer to push bar to bottom
+                spacer_h = max_bar_h - height_factor
+                col.addSpacing(spacer_h)
+                col.addWidget(lbl_val, 0, Qt.AlignHCenter)
+                col.addWidget(bar_frame, 0, Qt.AlignHCenter)
+                col.addWidget(lbl_day, 0, Qt.AlignHCenter)
 
-                self.weekly_bars_layout.addLayout(col)
+                self.weekly_bars_layout.addWidget(col_w)
 
-        # Populate Badges Gallery
-        if hasattr(self, 'badges_grid'):
-            while self.badges_grid.count():
-                child = self.badges_grid.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
+        # ── Badges Gallery ────────────────────────────────────────────────────
+        if hasattr(self, 'badges_scroll_grid'):
+            while self.badges_scroll_grid.count():
+                item = self.badges_scroll_grid.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
 
             unlocked = self.config.get("unlocked_badges", [])
+            cat_filter = getattr(self, 'current_badge_filter', 'all')
 
-            all_badges = [
-                ("b_water_1", "💧 مستكشف الهيدرات", "شرب 3 أكواب ماء"),
-                ("b_pushups_1", "🏋️ بطل التمارين", "إنجاز 15 ضغطة"),
-                ("b_learn_1", "🎓 طالب التركيز", "60 دقيقة تعلم"),
-                ("b_tasks_1", "📋 صائد المهام", "إكمال 3 مهام"),
-                ("b_score_100", "🏆 الأسطورة", "جمع 100 نقطة"),
+            # Update filter button active states
+            badge_filter_map = {
+                "btn_badge_filter_all":     "all",
+                "btn_badge_filter_water":   "water",
+                "btn_badge_filter_pushups": "pushups",
+                "btn_badge_filter_learn":   "learn",
+                "btn_badge_filter_tasks":   "tasks",
+                "btn_badge_filter_score":   "score",
+            }
+            for btn_name, val in badge_filter_map.items():
+                if hasattr(self, btn_name):
+                    b = getattr(self, btn_name)
+                    b.setProperty("active", "true" if cat_filter == val else "false")
+                    b.setStyle(b.style())
+
+            filtered_badges = [
+                b for b in ALL_BADGES
+                if cat_filter == "all" or b["cat"] == cat_filter
             ]
 
-            for b_id, title_b, desc_b in all_badges:
+            unlocked_count = sum(1 for b in ALL_BADGES if b["id"] in unlocked)
+            if hasattr(self, 'lbl_badges_count'):
+                self.lbl_badges_count.setText(f"✅ {unlocked_count} / {len(ALL_BADGES)} وسام")
+
+            CAT_COLORS = {
+                "water":   ("#38BDF8", "#0C2D3E"),
+                "pushups": ("#FB923C", "#2E1A0E"),
+                "learn":   ("#A78BFA", "#1D1435"),
+                "tasks":   ("#34D399", "#0E2E22"),
+                "score":   ("#F59E0B", "#2E2008"),
+            }
+
+            COLS = 4
+            for idx, badge in enumerate(filtered_badges):
+                bid = badge["id"]
+                is_unlocked = bid in unlocked
+                bcat = badge.get("cat", "score")
+                accent, bg_dark = CAT_COLORS.get(bcat, ("#94A3B8", "#111827"))
+
                 b_card = QFrame()
-                b_layout = QVBoxLayout(b_card)
-                b_layout.setContentsMargins(10, 10, 10, 10)
-                b_layout.setSpacing(4)
-                
-                is_unlocked = b_id in unlocked
+                b_card.setMinimumHeight(110)
                 if is_unlocked:
-                    b_card.setStyleSheet("background-color: rgba(16, 185, 129, 0.12); border: 1px solid #10B981; border-radius: 12px;")
+                    b_card.setStyleSheet(f"""
+                        QFrame {{
+                            background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                stop:0 {bg_dark}, stop:1 #111827);
+                            border: 1px solid {accent};
+                            border-radius: 14px;
+                        }}
+                    """)
                 else:
-                    b_card.setStyleSheet("background-color: #0B0F19; border: 1px solid #1F293D; border-radius: 12px; opacity: 0.6;")
+                    b_card.setStyleSheet("""
+                        QFrame {
+                            background-color: #0B0F19;
+                            border: 1px solid #1F293D;
+                            border-radius: 14px;
+                        }
+                    """)
 
-                lbl_t = QLabel(title_b)
-                lbl_t.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {'#10B981' if is_unlocked else '#64748B'};")
-                lbl_d = QLabel(desc_b)
-                lbl_d.setStyleSheet("font-size: 11px; color: #94A3B8;")
+                b_layout = QVBoxLayout(b_card)
+                b_layout.setContentsMargins(12, 10, 12, 10)
+                b_layout.setSpacing(4)
 
-                lbl_st = QLabel("تم الفتح ✅" if is_unlocked else "مغلق 🔒")
-                lbl_st.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {'#10B981' if is_unlocked else '#64748B'};")
+                lbl_t = QLabel(badge["title"])
+                lbl_t.setWordWrap(True)
+                lbl_t.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {accent if is_unlocked else '#475569'};")
+
+                lbl_d = QLabel(badge["desc"])
+                lbl_d.setWordWrap(True)
+                lbl_d.setStyleSheet("font-size: 11px; color: #64748B;")
+
+                pts_text = f"+{badge['pts']} نقطة" if badge.get('pts', 0) > 0 else ""
+                lbl_pts = QLabel(pts_text)
+                lbl_pts.setStyleSheet(f"font-size: 11px; color: {'#F59E0B' if is_unlocked else '#334155'}; font-weight: bold;")
+
+                lbl_st = QLabel("✅ تم الفتح" if is_unlocked else "🔒 مغلق")
+                lbl_st.setAlignment(Qt.AlignRight)
+                lbl_st.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {'#10B981' if is_unlocked else '#334155'};")
 
                 b_layout.addWidget(lbl_t)
                 b_layout.addWidget(lbl_d)
+                b_layout.addWidget(lbl_pts)
+                b_layout.addStretch()
                 b_layout.addWidget(lbl_st)
 
-                self.badges_grid.addWidget(b_card)
+                row = idx // COLS
+                col_i = idx % COLS
+                self.badges_scroll_grid.addWidget(b_card, row, col_i)
 
     def handle_overlay_finish(self, overlay_type):
         if overlay_type == "water":
