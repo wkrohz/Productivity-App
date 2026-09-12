@@ -16,6 +16,8 @@ DEFAULT_CONFIG = {
     ],
     "water_interval_min": 40,
     "pushups_interval_min": 120,
+    "water_enabled": True,
+    "pushups_enabled": True,
     "sound_enabled": True,
     "volume": 80,
     "daily_stats": {
@@ -49,9 +51,35 @@ DEFAULT_CONFIG = {
             "العشاء": "19:40"
         }
     },
+    "eye_rest_enabled": True,
+    "eye_rest_interval_min": 20,
     "quick_launch": {
         "apps": ["code.exe"],
         "urls": ["https://www.youtube.com"]
+    },
+    "quick_launch_profiles": [
+        {
+            "id": "profile_1",
+            "title": "🚀 بيئة البرمجة والتطوير",
+            "apps": ["code.exe"],
+            "urls": ["https://github.com", "https://stackoverflow.com"]
+        },
+        {
+            "id": "profile_2",
+            "title": "📖 بيئة التعلم والدراسة",
+            "apps": [],
+            "urls": ["https://www.youtube.com"]
+        }
+    ],
+    "sunnah_reminders": {
+        "enabled": True,
+        "items": [
+            {"id": "sunnah_duha", "name": "☀️ صلاة الضحى", "time": "09:30", "enabled": True},
+            {"id": "sunnah_azkar_m", "name": "🌅 أذكار الصباح", "time": "06:30", "enabled": True},
+            {"id": "sunnah_azkar_e", "name": "🌆 أذكار المساء", "time": "17:00", "enabled": True},
+            {"id": "sunnah_qiyam", "name": "🌙 صلاة قيام الليل والوتر", "time": "02:00", "enabled": True},
+            {"id": "sunnah_fajr", "name": "🌅 سنة الفجر (الركعتين)", "time": "04:30", "enabled": True}
+        ]
     }
 }
 

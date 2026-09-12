@@ -7,9 +7,8 @@ __pycache__/
 env/
 venv/
 
-# Build artifacts (PyInstaller)
+# Build artifacts
 build/
-dist/
 *.manifest
 
 # User config & stats (personal data)

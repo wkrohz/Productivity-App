@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QListWidget, QListWidgetItem, QLineEdit, QComboBox, QCheckBox,
     QStackedWidget, QFrame, QDialog, QMessageBox, QSystemTrayIcon, QMenu, QSizePolicy, QProgressBar,
-    QGridLayout, QScrollArea, QGraphicsDropShadowEffect
+    QGridLayout, QScrollArea, QGraphicsDropShadowEffect, QFileDialog, QInputDialog
 )
 from PySide6.QtCore import Qt, QTime, QTimer, QSize, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QIcon, QPixmap, QColor, QAction
@@ -28,7 +28,9 @@ from config_manager import ConfigManager
 from audio_manager import AudioManager
 from app_blocker import AppBlocker
 from asset_helper import get_asset_path, get_tinted_pixmap, get_tinted_icon
-from overlays import WaterOverlayWindow, PushupsOverlayWindow, StartScheduleOverlayWindow, ExerciseOverlayWindow, EXERCISES_LIST
+from overlays import (WaterOverlayWindow, PushupsOverlayWindow, StartScheduleOverlayWindow,
+                       ExerciseOverlayWindow, PrayerOverlayWindow, EyeRestOverlayWindow,
+                       AppointmentReminderOverlay, EXERCISES_LIST)
 
 MOTIVATIONAL_STUDY_QUOTES = [
     "💡 استمر! كل دقيقة تدرسها الآن تقربك من هدفك العظيم.",
@@ -56,6 +58,18 @@ def format_12h(time_str):
         return f"{h_12:02d}:{m:02d} {am_pm}"
     except Exception:
         return time_str
+
+def clear_layout_recursive(layout):
+    if layout is None:
+        return
+    while layout.count():
+        item = layout.takeAt(0)
+        w = item.widget()
+        if w is not None:
+            w.setParent(None)
+            w.deleteLater()
+        elif item.layout() is not None:
+            clear_layout_recursive(item.layout())
 
 RANKS = [
     (0,       "مبتدئ أول 🥉",      "#94A3B8", "بداية الرحلة والالتزام 🌱"),
@@ -120,6 +134,494 @@ ALL_BADGES = [
     {"id": "b_score_5",  "cat": "score", "title": "🌌 اسطورة الأوسمة",     "desc": "جمع 100000 نقطة إجمالاً (القمة)",  "pts": 0,   "score_min": 100000},
 ]
 
+class AddPortfolioFolderDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("أضف مجلد إنجاز جديد")
+        self.setMinimumWidth(440)
+        self.setStyleSheet("background-color: #0F172A; color: #F1F5F9; font-family: 'Segoe UI', sans-serif;")
+        self.folder_title = ""
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        lbl_t = QLabel("📂 إنشاء مجلد إنجازات جديد")
+        lbl_t.setStyleSheet("font-size: 18px; font-weight: bold; color: #38BDF8;")
+        lbl_d = QLabel("أدخل عنوان المجلد (مثل: شهادات الدورات، إنجازات الجامعة):")
+        lbl_d.setStyleSheet("color: #94A3B8; font-size: 13px;")
+
+        self.txt_title = QLineEdit()
+        self.txt_title.setPlaceholderText("عنوان المجلد...")
+
+        btn_box = QHBoxLayout()
+        btn_cancel = QPushButton("إلغاء")
+        btn_cancel.setStyleSheet("background: rgba(255,255,255,0.1); color: white; border-radius: 10px; padding: 8px 18px;")
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_save = QPushButton("إنشاء المجلد 📁")
+        btn_save.setObjectName("PrimaryBtn")
+        btn_save.setStyleSheet("background: #0284C7; color: white; font-weight: bold; border-radius: 10px; padding: 8px 18px;")
+        btn_save.clicked.connect(self.on_save)
+
+        btn_box.addStretch()
+        btn_box.addWidget(btn_cancel)
+        btn_box.addWidget(btn_save)
+
+        layout.addWidget(lbl_t)
+        layout.addWidget(lbl_d)
+        layout.addWidget(self.txt_title)
+        layout.addLayout(btn_box)
+
+    def on_save(self):
+        title = self.txt_title.text().strip()
+        if not title:
+            QMessageBox.warning(self, "تنبيه", "يرجى كتابة عنوان للمجلد!")
+            return
+        self.folder_title = title
+        self.accept()
+
+
+class AddPortfolioItemDialog(QDialog):
+    def __init__(self, folder_name, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"إضافة شهادة إلى: {folder_name}")
+        self.setMinimumWidth(480)
+        self.setStyleSheet("background-color: #0F172A; color: #F1F5F9; font-family: 'Segoe UI', sans-serif;")
+        self.file_path = ""
+        self.item_title = ""
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        lbl_t = QLabel(f"🖼️ إضافة شهادة / صورة إنجاز إلى ({folder_name})")
+        lbl_t.setStyleSheet("font-size: 18px; font-weight: bold; color: #10B981;")
+
+        self.lbl_img_preview = QLabel("لم يتم اختيار صورة بعد")
+        self.lbl_img_preview.setFixedHeight(120)
+        self.lbl_img_preview.setStyleSheet("background: #060A12; border: 1px dashed #38BDF8; border-radius: 12px; color: #64748B;")
+        self.lbl_img_preview.setAlignment(Qt.AlignCenter)
+
+        btn_pick = QPushButton("🔍 اختيار صورة الشهادة من جهازك")
+        btn_pick.setStyleSheet("background: #0284C7; color: white; font-weight: bold; border-radius: 10px; padding: 10px 16px;")
+        btn_pick.setCursor(Qt.PointingHandCursor)
+        btn_pick.clicked.connect(self.on_pick_image)
+
+        layout.addWidget(lbl_t)
+        layout.addWidget(self.lbl_img_preview)
+        layout.addWidget(btn_pick)
+
+        lbl_title_tag = QLabel("عنوان الشهادة أو الإنجاز:")
+        lbl_title_tag.setStyleSheet("color: #CBD5E1; font-weight: bold;")
+        self.txt_title = QLineEdit()
+        self.txt_title.setPlaceholderText("مثال: شهادة إتمام دورة بايثون...")
+
+        layout.addWidget(lbl_title_tag)
+        layout.addWidget(self.txt_title)
+
+        btn_box = QHBoxLayout()
+        btn_cancel = QPushButton("إلغاء")
+        btn_cancel.setStyleSheet("background: rgba(255,255,255,0.1); color: white; border-radius: 10px; padding: 8px 18px;")
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_save = QPushButton("حفظ الشهادة 💾")
+        btn_save.setStyleSheet("background: #10B981; color: white; font-weight: bold; border-radius: 10px; padding: 10px 18px;")
+        btn_save.setCursor(Qt.PointingHandCursor)
+        btn_save.clicked.connect(self.on_save)
+
+        btn_box.addStretch()
+        btn_box.addWidget(btn_cancel)
+        btn_box.addWidget(btn_save)
+
+        layout.addLayout(btn_box)
+
+    def on_pick_image(self):
+        fp, _ = QFileDialog.getOpenFileName(self, "اختر صورة الشهادة", "", "Images (*.png *.jpg *.jpeg *.bmp *.webp)")
+        if fp:
+            self.file_path = fp
+            pix = QPixmap(fp).scaled(220, 110, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.lbl_img_preview.setPixmap(pix)
+
+    def on_save(self):
+        if not self.file_path:
+            QMessageBox.warning(self, "تنبيه", "يرجى اختيار صورة للشهادة أولاً!")
+            return
+        t = self.txt_title.text().strip()
+        self.item_title = t if t else "شهادة إنجاز"
+        self.accept()
+
+
+class AddEditProfileDialog(QDialog):
+    def __init__(self, profile=None, parent=None):
+        super().__init__(parent)
+        self.profile = profile or {}
+        self.setWindowTitle("تعديل زر عمل سريع" if profile else "إضافة زر عمل سريع جديد")
+        self.setMinimumSize(540, 520)
+        self.setStyleSheet("background-color: #0F172A; color: #F1F5F9; font-family: 'Segoe UI', sans-serif;")
+
+        self.result_profile = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        lbl_t = QLabel("🚀 إعداد زر العمل السريع" if profile else "🚀 إضافة زر عمل سريع جديد")
+        lbl_t.setStyleSheet("font-size: 18px; font-weight: bold; color: #C084FC;")
+        layout.addWidget(lbl_t)
+
+        # Profile Title
+        lbl_title_tag = QLabel("اسم الزر / العنوان (مثال: 💻 بيئة البرمجة والتطوير):")
+        lbl_title_tag.setStyleSheet("color: #CBD5E1; font-weight: bold;")
+        self.txt_title = QLineEdit()
+        self.txt_title.setText(self.profile.get("title", ""))
+        self.txt_title.setPlaceholderText("أدخل اسم الزر...")
+        layout.addWidget(lbl_title_tag)
+        layout.addWidget(self.txt_title)
+
+        # Sections for Apps and URLs
+        grid_sections = QHBoxLayout()
+        grid_sections.setSpacing(16)
+
+        # ── Apps Box
+        apps_box = QVBoxLayout()
+        lbl_apps = QLabel("💻 التطبيقات (.exe):")
+        lbl_apps.setStyleSheet("font-weight: bold; color: #38BDF8;")
+        self.list_apps = QListWidget()
+        self.list_apps.setStyleSheet("background: #060A12; border: 1px solid #1E293D; border-radius: 10px; padding: 4px;")
+        for app in self.profile.get("apps", []):
+            self.list_apps.addItem(app)
+
+        btn_app_row = QHBoxLayout()
+        btn_add_app = QPushButton("➕ إضافة تطبيق")
+        btn_add_app.setStyleSheet("background: #0284C7; color: white; border-radius: 8px; padding: 6px 12px; font-weight: bold;")
+        btn_add_app.setCursor(Qt.PointingHandCursor)
+        btn_add_app.clicked.connect(self.add_app)
+        btn_del_app = QPushButton("🗑️ حذف")
+        btn_del_app.setStyleSheet("background: rgba(239,68,68,0.2); color: #EF4444; border-radius: 8px; padding: 6px 12px;")
+        btn_del_app.setCursor(Qt.PointingHandCursor)
+        btn_del_app.clicked.connect(self.del_app)
+        btn_app_row.addWidget(btn_add_app)
+        btn_app_row.addWidget(btn_del_app)
+
+        apps_box.addWidget(lbl_apps)
+        apps_box.addWidget(self.list_apps)
+        apps_box.addLayout(btn_app_row)
+
+        # ── URLs Box
+        urls_box = QVBoxLayout()
+        lbl_urls = QLabel("🌐 المواقع (URL):")
+        lbl_urls.setStyleSheet("font-weight: bold; color: #A78BFA;")
+        self.list_urls = QListWidget()
+        self.list_urls.setStyleSheet("background: #060A12; border: 1px solid #1E293D; border-radius: 10px; padding: 4px;")
+        for url in self.profile.get("urls", []):
+            self.list_urls.addItem(url)
+
+        btn_url_row = QHBoxLayout()
+        btn_add_url = QPushButton("➕ إضافة موقع")
+        btn_add_url.setStyleSheet("background: #7C3AED; color: white; border-radius: 8px; padding: 6px 12px; font-weight: bold;")
+        btn_add_url.setCursor(Qt.PointingHandCursor)
+        btn_add_url.clicked.connect(self.add_url)
+        btn_del_url = QPushButton("🗑️ حذف")
+        btn_del_url.setStyleSheet("background: rgba(239,68,68,0.2); color: #EF4444; border-radius: 8px; padding: 6px 12px;")
+        btn_del_url.setCursor(Qt.PointingHandCursor)
+        btn_del_url.clicked.connect(self.del_url)
+        btn_url_row.addWidget(btn_add_url)
+        btn_url_row.addWidget(btn_del_url)
+
+        urls_box.addWidget(lbl_urls)
+        urls_box.addWidget(self.list_urls)
+        urls_box.addLayout(btn_url_row)
+
+        grid_sections.addLayout(apps_box)
+        grid_sections.addLayout(urls_box)
+        layout.addLayout(grid_sections)
+
+        # Dialog buttons
+        btn_box = QHBoxLayout()
+        btn_cancel = QPushButton("إلغاء")
+        btn_cancel.setStyleSheet("background: rgba(255,255,255,0.1); color: white; border-radius: 10px; padding: 8px 18px;")
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_save = QPushButton("حفظ الزر 💾")
+        btn_save.setStyleSheet("background: #10B981; color: white; font-weight: bold; border-radius: 10px; padding: 10px 22px;")
+        btn_save.setCursor(Qt.PointingHandCursor)
+        btn_save.clicked.connect(self.on_save)
+
+        btn_box.addStretch()
+        btn_box.addWidget(btn_cancel)
+        btn_box.addWidget(btn_save)
+        layout.addLayout(btn_box)
+
+    def add_app(self):
+        reply = QMessageBox.question(self, "إضافة تطبيق", "هل تريد تصفح الملفات لاختيار برنامج (.exe)؟", QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
+        if reply == QMessageBox.Yes:
+            fp, _ = QFileDialog.getOpenFileName(self, "اختر البرنامج التنفيذي", "", "Executables (*.exe);;All Files (*)")
+            if fp:
+                self.list_apps.addItem(fp)
+        elif reply == QMessageBox.No:
+            text, ok = QInputDialog.getText(self, "إضافة تطبيق", "أدخل اسم البرنامج (مثل code.exe أو pycharm.exe):")
+            if ok and text.strip():
+                self.list_apps.addItem(text.strip())
+
+    def del_app(self):
+        row = self.list_apps.currentRow()
+        if row >= 0:
+            self.list_apps.takeItem(row)
+
+    def add_url(self):
+        text, ok = QInputDialog.getText(self, "إضافة موقع", "أدخل رابط الموقع (مثل: https://www.youtube.com):")
+        if ok and text.strip():
+            self.list_urls.addItem(text.strip())
+
+    def del_url(self):
+        row = self.list_urls.currentRow()
+        if row >= 0:
+            self.list_urls.takeItem(row)
+
+    def on_save(self):
+        title = self.txt_title.text().strip()
+        if not title:
+            QMessageBox.warning(self, "تنبيه", "يرجى أدخال اسم للزر!")
+            return
+        
+        apps = [self.list_apps.item(i).text() for i in range(self.list_apps.count())]
+        urls = [self.list_urls.item(i).text() for i in range(self.list_urls.count())]
+        
+        prof_id = self.profile.get("id") or f"profile_{int(datetime.datetime.now().timestamp())}"
+        self.result_profile = {
+            "id": prof_id,
+            "title": title,
+            "apps": apps,
+            "urls": urls
+        }
+        self.accept()
+
+
+class ManageQuickLaunchProfilesDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.main_app = parent
+        self.setWindowTitle("إدارة أزرار العمل السريع")
+        self.setMinimumSize(600, 480)
+        self.setStyleSheet("background-color: #0F172A; color: #F1F5F9; font-family: 'Segoe UI', sans-serif;")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        hdr = QLabel("⚙️ ضبط وإدارة أزرار العمل السريع")
+        hdr.setStyleSheet("font-size: 18px; font-weight: bold; color: #C084FC;")
+        desc = QLabel("يمكنك إضافة أزرار عمل جديدة، تعديل اسم كل زر أو تطبيقاته ومواقعه، أو حذف أزرار:")
+        desc.setStyleSheet("color: #94A3B8; font-size: 13px;")
+
+        layout.addWidget(hdr)
+        layout.addWidget(desc)
+
+        content_h = QHBoxLayout()
+        self.list_profiles = QListWidget()
+        self.list_profiles.setStyleSheet("background: #060A12; border: 1px solid #1E293D; border-radius: 12px; font-size: 15px; padding: 6px;")
+
+        btn_vbox = QVBoxLayout()
+        btn_vbox.setSpacing(10)
+
+        btn_add = QPushButton("➕ إضافة زر جديد")
+        btn_add.setStyleSheet("background: #0284C7; color: white; font-weight: bold; border-radius: 10px; padding: 10px 18px;")
+        btn_add.setCursor(Qt.PointingHandCursor)
+        btn_add.clicked.connect(self.add_profile)
+
+        btn_edit = QPushButton("✏️ تعديل الزر")
+        btn_edit.setStyleSheet("background: rgba(56,189,248,0.15); color: #38BDF8; font-weight: bold; border-radius: 10px; padding: 10px 18px; border: 1px solid rgba(56,189,248,0.4);")
+        btn_edit.setCursor(Qt.PointingHandCursor)
+        btn_edit.clicked.connect(self.edit_profile)
+
+        btn_delete = QPushButton("🗑️ حذف الزر")
+        btn_delete.setStyleSheet("background: rgba(239,68,68,0.15); color: #EF4444; font-weight: bold; border-radius: 10px; padding: 10px 18px; border: 1px solid rgba(239,68,68,0.4);")
+        btn_delete.setCursor(Qt.PointingHandCursor)
+        btn_delete.clicked.connect(self.delete_profile)
+
+        btn_vbox.addWidget(btn_add)
+        btn_vbox.addWidget(btn_edit)
+        btn_vbox.addWidget(btn_delete)
+        btn_vbox.addStretch()
+
+        content_h.addWidget(self.list_profiles, 1)
+        content_h.addLayout(btn_vbox)
+
+        layout.addLayout(content_h)
+
+        btn_close = QPushButton("إغلاق")
+        btn_close.setStyleSheet("background: rgba(255,255,255,0.1); color: white; border-radius: 10px; padding: 10px 22px;")
+        btn_close.setCursor(Qt.PointingHandCursor)
+        btn_close.clicked.connect(self.accept)
+        layout.addWidget(btn_close, 0, Qt.AlignRight)
+
+        self.reload_list()
+
+    def reload_list(self):
+        self.list_profiles.clear()
+        profiles = self.main_app.config.get("quick_launch_profiles", [])
+        for p in profiles:
+            app_cnt = len(p.get("apps", []))
+            url_cnt = len(p.get("urls", []))
+            item_str = f"{p.get('title', 'زر عمل')}   ({app_cnt} تطبيقات • {url_cnt} مواقع)"
+            it = QListWidgetItem(item_str)
+            it.setData(Qt.UserRole, p["id"])
+            self.list_profiles.addItem(it)
+
+    def add_profile(self):
+        dlg = AddEditProfileDialog(parent=self)
+        if dlg.exec() == QDialog.Accepted and dlg.result_profile:
+            if "quick_launch_profiles" not in self.main_app.config:
+                self.main_app.config["quick_launch_profiles"] = []
+            self.main_app.config["quick_launch_profiles"].append(dlg.result_profile)
+            self.main_app.cfg_mgr.save_config()
+            self.reload_list()
+
+    def edit_profile(self):
+        curr = self.list_profiles.currentItem()
+        if not curr:
+            QMessageBox.warning(self, "تنبيه", "يرجى اختيار زر لتعديله!")
+            return
+        p_id = curr.data(Qt.UserRole)
+        profiles = self.main_app.config.get("quick_launch_profiles", [])
+        p_obj = next((p for p in profiles if p["id"] == p_id), None)
+        if p_obj:
+            dlg = AddEditProfileDialog(profile=p_obj, parent=self)
+            if dlg.exec() == QDialog.Accepted and dlg.result_profile:
+                for idx, p in enumerate(profiles):
+                    if p["id"] == p_id:
+                        profiles[idx] = dlg.result_profile
+                        break
+                self.main_app.cfg_mgr.save_config()
+                self.reload_list()
+
+    def delete_profile(self):
+        curr = self.list_profiles.currentItem()
+        if not curr:
+            QMessageBox.warning(self, "تنبيه", "يرجى اختيار زر لحذفه!")
+            return
+        p_id = curr.data(Qt.UserRole)
+        reply = QMessageBox.question(self, "تأكيد الحذف", "هل تريد حذف زر العمل السريع هذا؟", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.main_app.config["quick_launch_profiles"] = [p for p in self.main_app.config.get("quick_launch_profiles", []) if p["id"] != p_id]
+            self.main_app.cfg_mgr.save_config()
+            self.reload_list()
+
+
+class LaunchProfilesDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.main_app = parent
+        self.setWindowTitle("أزرار العمل السريع (Quick Launch)")
+        self.setMinimumSize(640, 480)
+        self.setStyleSheet("background-color: #0F172A; color: #F1F5F9; font-family: 'Segoe UI', sans-serif;")
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        if self.layout():
+            QWidget().setLayout(self.layout())
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        hdr_row = QHBoxLayout()
+        hdr_vb = QVBoxLayout()
+        lbl_t = QLabel("🚀 أزرار بيئة العمل السريعة")
+        lbl_t.setStyleSheet("font-size: 22px; font-weight: bold; color: #C084FC;")
+        lbl_d = QLabel("اختر بيئة العمل التي تريد فتح تطبيقاتها ومواقعها الآن بضغطة واحدة:")
+        lbl_d.setStyleSheet("color: #94A3B8; font-size: 13px;")
+        hdr_vb.addWidget(lbl_t)
+        hdr_vb.addWidget(lbl_d)
+        hdr_row.addLayout(hdr_vb, 1)
+
+        btn_manage = QPushButton("⚙️ ضبط وإدارة الأزرار")
+        btn_manage.setStyleSheet("background: rgba(168,85,247,0.15); color: #C084FC; font-weight: bold; border-radius: 10px; padding: 8px 16px; border: 1px solid rgba(168,85,247,0.4);")
+        btn_manage.setCursor(Qt.PointingHandCursor)
+        btn_manage.clicked.connect(self.open_manage_dialog)
+        hdr_row.addWidget(btn_manage)
+
+        layout.addLayout(hdr_row)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        scroll_w = QWidget()
+        scroll_w.setStyleSheet("background: transparent;")
+        cards_vbox = QVBoxLayout(scroll_w)
+        cards_vbox.setSpacing(12)
+        cards_vbox.setContentsMargins(0, 0, 0, 0)
+
+        profiles = self.main_app.config.get("quick_launch_profiles", [])
+        if not profiles:
+            empty_lbl = QLabel("لا توجد أزرار عمل سريع بعد.\nاضغط على زر '⚙️ ضبط وإدارة الأزرار' بالأعلى لإضافة أزرار جديدة!")
+            empty_lbl.setAlignment(Qt.AlignCenter)
+            empty_lbl.setStyleSheet("color: #64748B; font-size: 15px; padding: 40px;")
+            cards_vbox.addWidget(empty_lbl)
+        else:
+            for prof in profiles:
+                card = QFrame()
+                card.setStyleSheet("""
+                    QFrame {
+                        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1E1B4B, stop:1 #111827);
+                        border: 1px solid rgba(168, 85, 247, 0.3);
+                        border-radius: 16px;
+                    }
+                    QFrame:hover {
+                        border-color: #C084FC;
+                    }
+                """)
+                card_layout = QHBoxLayout(card)
+                card_layout.setContentsMargins(20, 16, 20, 16)
+                card_layout.setSpacing(16)
+
+                info_vbox = QVBoxLayout()
+                info_vbox.setSpacing(4)
+                p_title = QLabel(prof.get("title", "بيئة عمل"))
+                p_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #F1F5F9;")
+                
+                app_c = len(prof.get("apps", []))
+                url_c = len(prof.get("urls", []))
+                p_sub = QLabel(f"💻 {app_c} تطبيقات • 🌐 {url_c} مواقع تعليمية وخاصة")
+                p_sub.setStyleSheet("font-size: 13px; color: #94A3B8;")
+
+                info_vbox.addWidget(p_title)
+                info_vbox.addWidget(p_sub)
+
+                btn_run = QPushButton("▶ تشغيل هذه البيئة 🚀")
+                btn_run.setStyleSheet("""
+                    QPushButton {
+                        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #8B5CF6, stop:1 #7C3AED);
+                        color: white; font-weight: bold; font-size: 14px;
+                        border-radius: 10px; padding: 10px 22px; border: none;
+                    }
+                    QPushButton:hover { background: #A855F7; }
+                """)
+                btn_run.setCursor(Qt.PointingHandCursor)
+                p_obj = prof
+                btn_run.clicked.connect(lambda ch=False, pr=p_obj: self.run_profile(pr))
+
+                card_layout.addLayout(info_vbox, 1)
+                card_layout.addWidget(btn_run)
+
+                cards_vbox.addWidget(card)
+
+        scroll.setWidget(scroll_w)
+        layout.addWidget(scroll)
+
+    def open_manage_dialog(self):
+        dlg = ManageQuickLaunchProfilesDialog(parent=self.main_app)
+        dlg.exec()
+        self.setup_ui()
+
+    def run_profile(self, prof):
+        self.accept()
+        self.main_app.launch_profile_environment(prof)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -144,12 +646,15 @@ class MainWindow(QMainWindow):
 
         self.water_timer_counter = 0
         self.pushups_timer_counter = 0
+        self.eye_rest_counter = 0
         self.study_motivate_counter = 0
         self.last_triggered_schedule_key = ""
+        self.last_sunnah_key = ""
 
         # ✅ منع تكرار شاشات التذكير
         self._water_overlay_open = False
         self._pushups_overlay_open = False
+        self._eye_rest_overlay_open = False
         self._schedule_overlay_open = False
 
         self.current_task_filter = "all"
@@ -571,11 +1076,13 @@ class MainWindow(QMainWindow):
         self.btn_nav_badge = self.create_nav_button("الأوسمة والرتب", "rocketlogo.png", 2)
         self.btn_nav_portfolio = self.create_nav_button("معرض الشهادات والإنجازات", "bullseye-arrowlogo.png", 7)
         self.btn_nav_sched = self.create_nav_button("جدول التعلم والمواعيد", "calendarlogo.png", 3)
+        self.btn_nav_prayer = self.create_nav_button("مواعيد الصلاة", "clocklogo.png", 8)
         sidebar_layout.addWidget(self.btn_nav_dash)
         sidebar_layout.addWidget(self.btn_nav_tasks)
         sidebar_layout.addWidget(self.btn_nav_badge)
         sidebar_layout.addWidget(self.btn_nav_portfolio)
         sidebar_layout.addWidget(self.btn_nav_sched)
+        sidebar_layout.addWidget(self.btn_nav_prayer)
 
         sidebar_layout.addSpacing(10)
         block_section = QLabel("  الحماية والتركيز")
@@ -624,6 +1131,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.create_blocked_websites_page())
         self.pages.addWidget(self.create_settings_page())
         self.pages.addWidget(self.create_portfolio_page())
+        self.pages.addWidget(self.create_prayer_times_page())
 
         content_layout.addWidget(self.pages)
         main_layout.addWidget(sidebar)
@@ -643,11 +1151,14 @@ class MainWindow(QMainWindow):
 
     def switch_page(self, index):
         self.pages.setCurrentIndex(index)
-        nav_btns = [self.btn_nav_dash, self.btn_nav_tasks, self.btn_nav_badge, self.btn_nav_sched, self.btn_nav_block, self.btn_nav_web_block, self.btn_nav_sets, self.btn_nav_portfolio]
+        nav_btns = [self.btn_nav_dash, self.btn_nav_tasks, self.btn_nav_badge, self.btn_nav_sched, self.btn_nav_block, self.btn_nav_web_block, self.btn_nav_sets, self.btn_nav_portfolio, self.btn_nav_prayer]
         for i, btn in enumerate(nav_btns):
             is_active = (i == index)
             btn.setProperty("active", "true" if is_active else "false")
             btn.setStyle(btn.style())
+            if hasattr(btn, '_icon_filename') and btn._icon_filename:
+                color = "#38BDF8" if is_active else "#64748B"
+                btn.setIcon(get_tinted_icon(btn._icon_filename, color, QSize(20, 20)))
             if hasattr(btn, '_icon_filename') and btn._icon_filename:
                 color = "#38BDF8" if is_active else "#64748B"
                 btn.setIcon(get_tinted_icon(btn._icon_filename, color, QSize(20, 20)))
@@ -771,7 +1282,7 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background: rgba(255,255,255,0.15); }
         """)
         btn_cfg_ql.setCursor(Qt.PointingHandCursor)
-        btn_cfg_ql.clicked.connect(self.configure_quick_launch_dialog)
+        btn_cfg_ql.clicked.connect(self.manage_quick_launch_profiles)
 
         ql_btns.addWidget(btn_launch)
         ql_btns.addWidget(btn_cfg_ql)
@@ -835,6 +1346,67 @@ class MainWindow(QMainWindow):
         stats_grid.addWidget(card_pushups)
         stats_grid.addWidget(card_session)
         layout.addLayout(stats_grid)
+
+        # ── Next Reminders & Timers Card ───────────────────────────────────
+        self.card_next_timers = QFrame()
+        self.card_next_timers.setObjectName("TimersCard")
+        self.card_next_timers.setStyleSheet("""
+            QFrame#TimersCard {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0B192E, stop:1 #0F172A);
+                border: 1px solid rgba(56, 189, 248, 0.15);
+                border-radius: 20px;
+            }
+        """)
+        timers_card_l = QVBoxLayout(self.card_next_timers)
+        timers_card_l.setContentsMargins(20, 16, 20, 16)
+        timers_card_l.setSpacing(12)
+
+        timers_head = QHBoxLayout()
+        lbl_timers_title = QLabel("⏳ المواعيد والتذكيرات القادمة")
+        lbl_timers_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #E2E8F0;")
+        timers_head.addWidget(lbl_timers_title)
+        timers_head.addStretch()
+        timers_card_l.addLayout(timers_head)
+
+        timers_row = QHBoxLayout()
+        timers_row.setSpacing(12)
+
+        def make_timer_box(emoji, title, attr_name, accent_color):
+            box = QFrame()
+            box.setStyleSheet(f"""
+                QFrame {{
+                    background: rgba(15, 23, 42, 0.6);
+                    border: 1px solid {accent_color}30;
+                    border-radius: 14px;
+                }}
+            """)
+            bl = QVBoxLayout(box)
+            bl.setSpacing(4)
+            bl.setContentsMargins(14, 10, 14, 10)
+            
+            h_lbl = QLabel(f"{emoji} {title}")
+            h_lbl.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {accent_color};")
+            
+            val_lbl = QLabel("جاري الحساب...")
+            val_lbl.setStyleSheet("font-size: 15px; font-weight: 800; color: #F8FAFC;")
+            setattr(self, attr_name, val_lbl)
+
+            bl.addWidget(h_lbl)
+            bl.addWidget(val_lbl)
+            return box
+
+        self.box_timer_eye = make_timer_box("👁️", "راحة العينين", "lbl_timer_eye", "#06B6D4")
+        self.box_timer_pushups = make_timer_box("🏋️", "التمرين الرياضي", "lbl_timer_pushups", "#FB923C")
+        self.box_timer_water = make_timer_box("💧", "شرب الماء", "lbl_timer_water", "#38BDF8")
+
+        timers_row.addWidget(self.box_timer_eye)
+        timers_row.addWidget(self.box_timer_pushups)
+        timers_row.addWidget(self.box_timer_water)
+
+        timers_card_l.addLayout(timers_row)
+        layout.addWidget(self.card_next_timers)
+        self.update_dashboard_timers()
 
         # ── Tasks Compact Card ──────────────────────────────────────────────
         card_tasks = QFrame()
@@ -1654,8 +2226,29 @@ class MainWindow(QMainWindow):
         self.chk_sound.setChecked(self.config.get("sound_enabled", True))
         self.chk_sound.toggled.connect(self.toggle_sound)
 
+        self.chk_water_enabled = QCheckBox("💧 تفعيل تذكير شرب الماء الدوري")
+        self.chk_water_enabled.setChecked(self.config.get("water_enabled", True))
+        self.chk_water_enabled.toggled.connect(self.toggle_water_reminders)
+
+        self.chk_pushups_enabled = QCheckBox("🏋️ تفعيل تذكير تمارين البوش أب والتمارين الرياضية")
+        self.chk_pushups_enabled.setChecked(self.config.get("pushups_enabled", True))
+        self.chk_pushups_enabled.toggled.connect(self.toggle_pushups_reminders)
+
+        self.chk_eye_rest_enabled = QCheckBox("👀 تفعيل استراحة العينين والبدن (كل 20 دقيقة تنبيه 20 ثانية - قاعدة 20-20-20)")
+        self.chk_eye_rest_enabled.setChecked(self.config.get("eye_rest_enabled", True))
+        self.chk_eye_rest_enabled.toggled.connect(self.toggle_eye_rest_reminders)
+
+        btn_manage_ql_settings = QPushButton("⚙️ إدارة وتعديل أزرار العمل السريع (Quick Launch Profiles)")
+        btn_manage_ql_settings.setStyleSheet("background: rgba(168, 85, 247, 0.15); color: #C084FC; font-weight: bold; border-radius: 10px; padding: 10px 16px; border: 1px solid rgba(168, 85, 247, 0.4);")
+        btn_manage_ql_settings.setCursor(Qt.PointingHandCursor)
+        btn_manage_ql_settings.clicked.connect(self.manage_quick_launch_profiles)
+
         opts_layout.addWidget(self.chk_startup)
         opts_layout.addWidget(self.chk_sound)
+        opts_layout.addWidget(self.chk_water_enabled)
+        opts_layout.addWidget(self.chk_pushups_enabled)
+        opts_layout.addWidget(self.chk_eye_rest_enabled)
+        opts_layout.addWidget(btn_manage_ql_settings)
         layout.addWidget(opts_card)
 
         # ── Interval Settings Card ──────────────────────────────────────────
@@ -1727,7 +2320,7 @@ class MainWindow(QMainWindow):
         btn_test_water.setCursor(Qt.PointingHandCursor)
         btn_test_water.clicked.connect(self.test_water_overlay)
 
-        btn_test_pushups = QPushButton("🏋️ تجربة تمرين رياضي (متنوع)")
+        btn_test_pushups = QPushButton("🏋️ تجربة تمرين رياضي")
         btn_test_pushups.setObjectName("PrimaryBtn")
         btn_test_pushups.setStyleSheet("""
             QPushButton#PrimaryBtn {
@@ -1739,8 +2332,21 @@ class MainWindow(QMainWindow):
         btn_test_pushups.setCursor(Qt.PointingHandCursor)
         btn_test_pushups.clicked.connect(self.test_pushups_overlay)
 
+        btn_test_eye = QPushButton("👀 تجربة استراحة العينين (20ث)")
+        btn_test_eye.setObjectName("PrimaryBtn")
+        btn_test_eye.setStyleSheet("""
+            QPushButton#PrimaryBtn {
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #0284C7,stop:1 #38BDF8);
+                border-color: #38BDF8;
+            }
+            QPushButton#PrimaryBtn:hover { background: #0284C7; }
+        """)
+        btn_test_eye.setCursor(Qt.PointingHandCursor)
+        btn_test_eye.clicked.connect(self.test_eye_rest_overlay)
+
         btn_box.addWidget(btn_test_water)
         btn_box.addWidget(btn_test_pushups)
+        btn_box.addWidget(btn_test_eye)
 
         test_layout.addWidget(test_title)
         test_layout.addWidget(test_desc)
@@ -2429,6 +3035,16 @@ class MainWindow(QMainWindow):
         self.audio_mgr.enabled = checked
         self.cfg_mgr.save_config()
 
+    def toggle_water_reminders(self, checked):
+        self.config["water_enabled"] = checked
+        self.cfg_mgr.save_config()
+        self.update_dashboard_timers()
+
+    def toggle_pushups_reminders(self, checked):
+        self.config["pushups_enabled"] = checked
+        self.cfg_mgr.save_config()
+        self.update_dashboard_timers()
+
     def test_water_overlay(self):
         """تفتح شاشة الماء — لكن فقط إذا ما كانت مفتوحة بالفعل."""
         if self._water_overlay_open:
@@ -2833,6 +3449,8 @@ class MainWindow(QMainWindow):
             self.config["daily_stats"]["pushups_count"] += 5
             self.lbl_stat_pushups.setText(f"{self.config['daily_stats']['pushups_count']} ضغطات")
             self.award_points(20, "بوش أب")
+        elif overlay_type == "eye_rest":
+            self._eye_rest_overlay_open = False
         elif overlay_type == "schedule":
             self._schedule_overlay_open = False
         self.cfg_mgr.save_config()
@@ -2848,7 +3466,17 @@ class MainWindow(QMainWindow):
         self.minute_timer.start(60000)
 
     def check_processes_loop(self):
+        now_dt = datetime.datetime.now()
         now_str = QTime.currentTime().toString("hh:mm")
+
+        # 🕌 Prayer 5-minute block timer enforcement
+        if hasattr(self, "prayer_block_until") and self.prayer_block_until:
+            if now_dt < self.prayer_block_until:
+                self.app_blocker.set_active(True)
+            else:
+                self.prayer_block_until = None
+                if not self.config.get("manual_session_active", False) and not getattr(self, "_prayer_overlay_open", False):
+                    self.app_blocker.set_active(False)
 
         # 🕌 Prayer Times Check
         if self.config.get("prayer_times", {}).get("enabled", True) and not getattr(self, "_prayer_overlay_open", False):
@@ -2859,11 +3487,36 @@ class MainWindow(QMainWindow):
                     if getattr(self, "last_prayer_key", "") != p_key:
                         self.last_prayer_key = p_key
                         self._prayer_overlay_open = True
+                        self.prayer_block_until = now_dt + datetime.timedelta(minutes=5)
                         self.app_blocker.set_active(True)
                         self.prayer_overlay = PrayerOverlayWindow(
                             prayer_name=p_name,
                             audio_mgr=self.audio_mgr,
                             on_finish_callback=self._on_prayer_confirmed
+                        )
+                        break
+
+        # 📿 Sunnah & Azkar Check
+        sunnah_cfg = self.config.get("sunnah_reminders", {})
+        if sunnah_cfg.get("enabled", True):
+            for s_item in sunnah_cfg.get("items", []):
+                if s_item.get("enabled", True) and s_item.get("time") == now_str:
+                    s_key = f"sunnah_{s_item['id']}_{now_str}"
+                    if getattr(self, "last_sunnah_key", "") != s_key:
+                        self.last_sunnah_key = s_key
+                        if self.audio_mgr:
+                            self.audio_mgr.play_water_alarm()
+                        if hasattr(self, "tray_icon") and self.tray_icon:
+                            self.tray_icon.showMessage(
+                                f"📿 تنبيه سنة/أذكار: {s_item['name']}",
+                                f"قد حان موعد {s_item['name']} — تذكير إيماني مبارك 🤲",
+                                QSystemTrayIcon.Information,
+                                10000
+                            )
+                        QMessageBox.information(
+                            self,
+                            f"📿 تنبيه: {s_item['name']}",
+                            f"✨ حان الآن موعد {s_item['name']}\n\n« الَّذِينَ آمَنُوا وَتَطْمَئِنُّ قُلُوبُهُم بِذِكْرِ اللَّهِ ۗ أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ »"
                         )
                         break
 
@@ -2877,8 +3530,13 @@ class MainWindow(QMainWindow):
                         
                         s_type = sched.get("type", "standard")
                         if s_type == "reminder":
-                            if hasattr(self, "tray_icon") and self.tray_icon:
-                                self.tray_icon.showMessage(f"🔔 تذكير بموعد: {sched['name']}", f"حان الآن موعد {sched['name']} ({sched['start']})", QSystemTrayIcon.Information, 10000)
+                            self._appointment_overlay = AppointmentReminderOverlay(
+                                appointment_name=sched['name'],
+                                appointment_time=sched.get('start', ''),
+                                is_strict=False,
+                                audio_mgr=self.audio_mgr,
+                                on_close_callback=None
+                            )
                         else:
                             self._schedule_overlay_open = True
                             if s_type == "strict":
@@ -2889,6 +3547,38 @@ class MainWindow(QMainWindow):
                                 on_confirm_callback=self._on_schedule_confirmed
                             )
                         break
+
+        # 🏁 Auto-end Learning Session when scheduled end time is reached
+        if self.config.get("manual_session_active", False) or self.app_blocker.is_active:
+            for sched in self.config.get("learning_schedules", []):
+                if sched.get("active", True) and sched.get("end") == now_str:
+                    sched_end_key = f"end_{sched['name']}_{now_str}"
+                    if getattr(self, "last_ended_schedule_key", "") != sched_end_key:
+                        self.last_ended_schedule_key = sched_end_key
+                        self.config["manual_session_is_strict"] = False
+                        self.finish_learning_session()
+                        if hasattr(self, "tray_icon") and self.tray_icon:
+                            self.tray_icon.showMessage(
+                                "🎉 انتهت جلسة التعلم",
+                                f"وصلنا إلى موعد نهاية {sched['name']} ({sched.get('end')}). تم إلغاء حظر التطبيقات بنجاح!",
+                                QSystemTrayIcon.Information,
+                                7000
+                            )
+                        break
+
+            m_end = self.config.get("manual_session_end_time", "")
+            if m_end and m_end == now_str:
+                if getattr(self, "last_ended_schedule_key", "") != f"m_end_{now_str}":
+                    self.last_ended_schedule_key = f"m_end_{now_str}"
+                    self.config["manual_session_is_strict"] = False
+                    self.finish_learning_session()
+                    if hasattr(self, "tray_icon") and self.tray_icon:
+                        self.tray_icon.showMessage(
+                            "🎉 انتهت جلسة التعلم",
+                            "وصلنا لانتهاء فترة التعلم المحددة! تم فك الحظر.",
+                            QSystemTrayIcon.Information,
+                            7000
+                        )
 
         if self.config.get("manual_session_active", False) or self.app_blocker.is_active:
             self.app_blocker.check_and_enforce()
@@ -2926,19 +3616,28 @@ class MainWindow(QMainWindow):
             }
             self.cfg_mgr.save_config()
 
-        self.water_timer_counter += 1
-        self.pushups_timer_counter += 1
+        if self.config.get("water_enabled", True):
+            self.water_timer_counter += 1
+            if self.water_timer_counter >= self.config.get("water_interval_min", 40):
+                self.water_timer_counter = 0
+                if not self._water_overlay_open:
+                    self.test_water_overlay()
 
-        # ✅ فقط إذا ما كانت شاشة مفتوحة بالفعل
-        if self.water_timer_counter >= self.config.get("water_interval_min", 40):
-            self.water_timer_counter = 0
-            if not self._water_overlay_open:
-                self.test_water_overlay()
+        if self.config.get("pushups_enabled", True):
+            self.pushups_timer_counter += 1
+            if self.pushups_timer_counter >= self.config.get("pushups_interval_min", 120):
+                self.pushups_timer_counter = 0
+                if not self._pushups_overlay_open:
+                    self.test_pushups_overlay()
 
-        if self.pushups_timer_counter >= self.config.get("pushups_interval_min", 120):
-            self.pushups_timer_counter = 0
-            if not self._pushups_overlay_open:
-                self.test_pushups_overlay()
+        if self.config.get("eye_rest_enabled", True):
+            self.eye_rest_counter += 1
+            if self.eye_rest_counter >= self.config.get("eye_rest_interval_min", 20):
+                self.eye_rest_counter = 0
+                if not getattr(self, "_eye_rest_overlay_open", False):
+                    self.test_eye_rest_overlay()
+
+        self.update_dashboard_timers()
 
     # System Tray
     def setup_system_tray(self):
@@ -2978,175 +3677,110 @@ class MainWindow(QMainWindow):
         )
 
 
+    def toggle_eye_rest_reminders(self, enabled: bool):
+        self.config["eye_rest_enabled"] = enabled
+        self.cfg_mgr.save_config()
+        self.update_dashboard_timers()
+
+    def update_dashboard_timers(self):
+        if not hasattr(self, "card_next_timers"):
+            return
+
+        water_enabled = self.config.get("water_enabled", True)
+        pushups_enabled = self.config.get("pushups_enabled", True)
+        eye_rest_enabled = self.config.get("eye_rest_enabled", True)
+
+        visible_count = 0
+
+        # Eye Rest Timer
+        if eye_rest_enabled:
+            self.box_timer_eye.setVisible(True)
+            visible_count += 1
+            interval = self.config.get("eye_rest_interval_min", 20)
+            rem = max(0, interval - getattr(self, "eye_rest_counter", 0))
+            if rem == 0:
+                self.lbl_timer_eye.setText("الآن 🔔")
+            else:
+                self.lbl_timer_eye.setText(f"بعد {rem} دقيقة")
+        else:
+            self.box_timer_eye.setVisible(False)
+
+        # Pushups/Exercise Timer
+        if pushups_enabled:
+            self.box_timer_pushups.setVisible(True)
+            visible_count += 1
+            interval = self.config.get("pushups_interval_min", 120)
+            rem = max(0, interval - getattr(self, "pushups_timer_counter", 0))
+            if rem == 0:
+                self.lbl_timer_pushups.setText("الآن 🏋️")
+            else:
+                self.lbl_timer_pushups.setText(f"بعد {rem} دقيقة")
+        else:
+            self.box_timer_pushups.setVisible(False)
+
+        # Water Timer
+        if water_enabled:
+            self.box_timer_water.setVisible(True)
+            visible_count += 1
+            interval = self.config.get("water_interval_min", 40)
+            rem = max(0, interval - getattr(self, "water_timer_counter", 0))
+            if rem == 0:
+                self.lbl_timer_water.setText("الآن 💧")
+            else:
+                self.lbl_timer_water.setText(f"بعد {rem} دقيقة")
+        else:
+            self.box_timer_water.setVisible(False)
+
+        # Hide entire card if all 3 are disabled
+        self.card_next_timers.setVisible(visible_count > 0)
+
+    def test_eye_rest_overlay(self):
+        if not getattr(self, "_eye_rest_overlay_open", False):
+            self._eye_rest_overlay_open = True
+            self.eye_rest_overlay = EyeRestOverlayWindow(
+                audio_mgr=self.audio_mgr,
+                on_finish_callback=self.handle_overlay_finish
+            )
+
     # ─── QUICK LAUNCH FEATURES ───────────────────────────────────────────────
     def trigger_quick_launch(self):
-        self.start_manual_session()
+        dlg = LaunchProfilesDialog(self)
+        dlg.exec()
 
-        ql = self.config.get("quick_launch", {"apps": [], "urls": []})
-        launched_count = 0
+    def manage_quick_launch_profiles(self):
+        dlg = ManageQuickLaunchProfilesDialog(self)
+        dlg.exec()
 
-        for app in ql.get("apps", []):
+    def launch_profile_environment(self, profile):
+        if not self.config.get("manual_session_active", False):
+            self.start_manual_session()
+
+        launched_apps = 0
+        launched_urls = 0
+
+        for app in profile.get("apps", []):
             try:
                 if os.path.isabs(app) and os.path.exists(app):
                     subprocess.Popen([app])
                 else:
                     os.startfile(app)
-                launched_count += 1
+                launched_apps += 1
             except Exception as e:
                 print(f"Error launching app {app}: {e}")
 
-        for url in ql.get("urls", []):
+        for url in profile.get("urls", []):
             try:
                 open_url_in_default_browser(url)
-                launched_count += 1
+                launched_urls += 1
             except Exception as e:
                 print(f"Error opening url {url}: {e}")
 
+        p_title = profile.get("title", "بيئة العمل")
         QMessageBox.information(
             self,
-            "العمل السريع",
-            f"🚀 تم بدء جلسة التعلم وتشغيل بيئة العمل السريعة بنجاح!\n(تم فتح {launched_count} عنصر بنجاح)"
+            "العمل السريع 🚀",
+            f"تم بدء جلسة التعلم وتشغيل '{p_title}' بنجاح!\n\n💻 تم فتح {launched_apps} تطبيقات\n🌐 تم فتح {launched_urls} مواقع"
         )
-
-    def configure_quick_launch_dialog(self):
-        dlg = QDialog(self)
-        dlg.setWindowTitle("ضبط بيئة العمل السريعة (Quick Launch)")
-        dlg.setMinimumSize(600, 520)
-        dlg.setStyleSheet("background-color: #0F172A; color: #F1F5F9; font-family: 'Segoe UI', sans-serif;")
-
-        layout = QVBoxLayout(dlg)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
-
-        lbl_title = QLabel("🚀 إدارة بيئة العمل السريعة (تطبيقات ومواقع)")
-        lbl_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #C084FC;")
-        lbl_desc = QLabel("أضف التطبيقات والروابط التي تريد فتحها تلقائياً عند بدء العمل السريع بضغطة زر واحد:")
-        lbl_desc.setStyleSheet("color: #94A3B8; font-size: 13px;")
-
-        layout.addWidget(lbl_title)
-        layout.addWidget(lbl_desc)
-
-        ql = self.config.get("quick_launch", {"apps": ["code.exe"], "urls": ["https://www.youtube.com"]})
-        current_apps = list(ql.get("apps", []))
-        current_urls = list(ql.get("urls", []))
-
-        # ── Apps Section
-        apps_hdr = QHBoxLayout()
-        lbl_apps_t = QLabel("💻 التطبيقات المحددة:")
-        lbl_apps_t.setStyleSheet("font-weight: bold; color: #38BDF8; font-size: 15px;")
-        btn_add_app = QPushButton("➕ إضافة تطبيق جديد")
-        btn_add_app.setStyleSheet("background: rgba(56, 189, 248, 0.15); color: #38BDF8; font-weight: bold; border-radius: 8px; padding: 6px 12px;")
-        btn_add_app.setCursor(Qt.PointingHandCursor)
-        apps_hdr.addWidget(lbl_apps_t)
-        apps_hdr.addStretch()
-        apps_hdr.addWidget(btn_add_app)
-        layout.addLayout(apps_hdr)
-
-        list_apps_w = QListWidget()
-        list_apps_w.setFixedHeight(120)
-        layout.addWidget(list_apps_w)
-
-        # ── Websites Section
-        urls_hdr = QHBoxLayout()
-        lbl_urls_t = QLabel("🌐 المواقع والروابط التعليمية:")
-        lbl_urls_t.setStyleSheet("font-weight: bold; color: #10B981; font-size: 15px;")
-        btn_add_url = QPushButton("➕ إضافة موقع / رابط جديد")
-        btn_add_url.setStyleSheet("background: rgba(16, 185, 129, 0.15); color: #10B981; font-weight: bold; border-radius: 8px; padding: 6px 12px;")
-        btn_add_url.setCursor(Qt.PointingHandCursor)
-        urls_hdr.addWidget(lbl_urls_t)
-        urls_hdr.addStretch()
-        urls_hdr.addWidget(btn_add_url)
-        layout.addLayout(urls_hdr)
-
-        list_urls_w = QListWidget()
-        list_urls_w.setFixedHeight(120)
-        layout.addWidget(list_urls_w)
-
-        def refresh_lists():
-            list_apps_w.clear()
-            list_urls_w.clear()
-
-            trash_pix = get_tinted_pixmap("trash.png", "#EF4444", QSize(16, 16))
-
-            for idx, a in enumerate(current_apps):
-                item = QListWidgetItem(list_apps_w)
-                rw = QWidget()
-                rl = QHBoxLayout(rw)
-                rl.setContentsMargins(10, 4, 10, 4)
-                lbl = QLabel(f"💻 {a}")
-                lbl.setStyleSheet("color: #E2E8F0; font-weight: 500;")
-                btn_del = QPushButton()
-                btn_del.setObjectName("IconTrashBtn")
-                btn_del.setFixedSize(28, 28)
-                if not trash_pix.isNull():
-                    btn_del.setIcon(QIcon(trash_pix))
-                btn_del.clicked.connect(lambda ch, i=idx: (current_apps.pop(i), refresh_lists()))
-                rl.addWidget(lbl, 1)
-                rl.addWidget(btn_del)
-                item.setSizeHint(rw.sizeHint())
-                list_apps_w.addItem(item)
-                list_apps_w.setItemWidget(item, rw)
-
-            for idx, u in enumerate(current_urls):
-                item = QListWidgetItem(list_urls_w)
-                rw = QWidget()
-                rl = QHBoxLayout(rw)
-                rl.setContentsMargins(10, 4, 10, 4)
-                lbl = QLabel(f"🌐 {u}")
-                lbl.setStyleSheet("color: #E2E8F0; font-weight: 500;")
-                btn_del = QPushButton()
-                btn_del.setObjectName("IconTrashBtn")
-                btn_del.setFixedSize(28, 28)
-                if not trash_pix.isNull():
-                    btn_del.setIcon(QIcon(trash_pix))
-                btn_del.clicked.connect(lambda ch, i=idx: (current_urls.pop(i), refresh_lists()))
-                rl.addWidget(lbl, 1)
-                rl.addWidget(btn_del)
-                item.setSizeHint(rw.sizeHint())
-                list_urls_w.addItem(item)
-                list_urls_w.setItemWidget(item, rw)
-
-        def on_add_app():
-            reply = QMessageBox.question(dlg, "إضافة تطبيق", "هل تريد تصفح الملفات لاختيار برنامج (.exe)؟", QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
-            if reply == QMessageBox.Yes:
-                fp, _ = QFileDialog.getOpenFileName(dlg, "اختر البرنامج التنفيذي", "", "Executables (*.exe)")
-                if fp:
-                    current_apps.append(fp)
-                    refresh_lists()
-            elif reply == QMessageBox.No:
-                text, ok = QInputDialog.getText(dlg, "إضافة تطبيق", "أدخل اسم البرنامج (مثل code.exe أو pycharm.exe):")
-                if ok and text.strip():
-                    current_apps.append(text.strip())
-                    refresh_lists()
-
-        def on_add_url():
-            url_text, ok = QInputDialog.getText(dlg, "إضافة موقع", "أدخل رابط الموقع (مثال: https://youtube.com/...):")
-            if ok and url_text.strip():
-                current_urls.append(url_text.strip())
-                refresh_lists()
-
-        btn_add_app.clicked.connect(on_add_app)
-        btn_add_url.clicked.connect(on_add_url)
-
-        refresh_lists()
-
-        btn_box = QHBoxLayout()
-        btn_save = QPushButton("حفظ الضبط")
-        btn_save.setObjectName("PrimaryBtn")
-        btn_save.setCursor(Qt.PointingHandCursor)
-
-        def save_ql():
-            self.config["quick_launch"] = {"apps": current_apps, "urls": current_urls}
-            self.cfg_mgr.save_config()
-            QMessageBox.information(dlg, "تم الحفظ", "تم حفظ بيئة العمل السريعة بنجاح!")
-            dlg.accept()
-
-        btn_save.clicked.connect(save_ql)
-        btn_box.addStretch()
-        btn_box.addWidget(btn_save)
-        layout.addLayout(btn_box)
-
-        dlg.exec()
 
 
     # ─── PORTFOLIO & ACHIEVEMENTS VAULT ────────────────────────────────────────
@@ -3173,16 +3807,13 @@ class MainWindow(QMainWindow):
         return page
 
     def reload_portfolio_ui(self):
-        while self.portfolio_layout.count():
-            item = self.portfolio_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        clear_layout_recursive(self.portfolio_layout)
 
         folders = self.config.get("portfolio_folders", [])
         current_fid = getattr(self, "current_portfolio_folder_id", None)
-        active_folder = next((f for f in folders if f["id"] == current_fid), None) if current_fid else None
+        active_folder = next((f for f in folders if f.get("id") == current_fid), None) if current_fid else None
 
-        # ── Distinct Header Styling depending on Folder View vs Main View
+        # ── Header Card
         hdr_card = QFrame()
         if active_folder:
             hdr_card.setStyleSheet("""
@@ -3242,7 +3873,8 @@ class MainWindow(QMainWindow):
             btn_add_item = QPushButton("🖼️ إضافة شهادة / صورة للمجلد")
             btn_add_item.setStyleSheet("background: #10B981; color: white; font-weight: bold; border-radius: 12px; padding: 12px 20px; border: none;")
             btn_add_item.setCursor(Qt.PointingHandCursor)
-            btn_add_item.clicked.connect(lambda: self.add_portfolio_item(active_folder['id']))
+            af_id = active_folder['id']
+            btn_add_item.clicked.connect(lambda ch=False, fid=af_id: self.add_portfolio_item(fid))
             btn_row.addWidget(btn_add_item)
         else:
             btn_add_folder = QPushButton("📁 أضف مجلد إنجاز جديد")
@@ -3257,6 +3889,7 @@ class MainWindow(QMainWindow):
         if not active_folder:
             sec_title = QLabel("📂 المجلدات الرئيسية للإنجازات:")
             sec_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #38BDF8;")
+            self.portfolio_layout.addWidget(sec_title)
 
             grid = QGridLayout()
             grid.setSpacing(16)
@@ -3298,7 +3931,7 @@ class MainWindow(QMainWindow):
                 btn_open.setStyleSheet("background: rgba(2, 132, 199, 0.2); color: #38BDF8; font-weight: bold; border-radius: 10px; padding: 8px 16px; border: 1px solid rgba(56,189,248,0.3);")
                 btn_open.setCursor(Qt.PointingHandCursor)
                 f_id = folder["id"]
-                btn_open.clicked.connect(lambda ch, fid=f_id: self._set_portfolio_folder(fid))
+                btn_open.clicked.connect(lambda ch=False, fid=f_id: self._set_portfolio_folder(fid))
 
                 btn_del_f = QPushButton()
                 btn_del_f.setObjectName("IconTrashBtn")
@@ -3307,7 +3940,7 @@ class MainWindow(QMainWindow):
                 trash_pix = get_tinted_pixmap("trash.png", "#EF4444", QSize(18, 18))
                 if not trash_pix.isNull():
                     btn_del_f.setIcon(QIcon(trash_pix))
-                btn_del_f.clicked.connect(lambda ch, fid=f_id: self.delete_portfolio_folder(fid))
+                btn_del_f.clicked.connect(lambda ch=False, fid=f_id: self.delete_portfolio_folder(fid))
 
                 action_row.addWidget(btn_open, 1)
                 action_row.addWidget(btn_del_f)
@@ -3323,21 +3956,36 @@ class MainWindow(QMainWindow):
             self.portfolio_layout.addStretch()
 
         else:
-            folder = next((f for f in folders if f["id"] == self.current_portfolio_folder_id), None)
-            if not folder:
-                self._set_portfolio_folder(None)
-                return
-
+            folder = active_folder
             sec_title = QLabel(f"🖼️ الشهادات والإنجازات داخل: ({folder.get('title')})")
             sec_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #38BDF8;")
             self.portfolio_layout.addWidget(sec_title)
 
             items = folder.get("items", [])
             if not items:
-                empty_lbl = QLabel("لا توجد شهادات أو إنجازات مرفوعة في هذا المجلد بعد.\nاضغط 'إضافة شهادة / صورة إنجاز' بالأعلى لإضافة إنجازاتك!")
-                empty_lbl.setStyleSheet("color: #64748B; font-size: 15px; padding: 40px;")
+                empty_card = QFrame()
+                empty_card.setStyleSheet("""
+                    QFrame {
+                        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0D1626, stop:1 #080D18);
+                        border: 2px dashed rgba(56, 189, 248, 0.25);
+                        border-radius: 20px;
+                    }
+                """)
+                empty_layout = QVBoxLayout(empty_card)
+                empty_layout.setContentsMargins(40, 50, 40, 50)
+                empty_layout.setSpacing(14)
+
+                ic_l = QLabel("📜")
+                ic_l.setStyleSheet("font-size: 48px;")
+                ic_l.setAlignment(Qt.AlignCenter)
+
+                empty_lbl = QLabel("لا توجد شهادات أو إنجازات مرفوعة في هذا المجلد بعد.\nاضغط على زر '🖼️ إضافة شهادة / صورة للمجلد' بالأعلى لإضافة إنجازاتك!")
+                empty_lbl.setStyleSheet("color: #94A3B8; font-size: 16px; font-weight: 500; line-height: 1.6;")
                 empty_lbl.setAlignment(Qt.AlignCenter)
-                self.portfolio_layout.addWidget(empty_lbl)
+
+                empty_layout.addWidget(ic_l)
+                empty_layout.addWidget(empty_lbl)
+                self.portfolio_layout.addWidget(empty_card)
             else:
                 grid = QGridLayout()
                 grid.setSpacing(16)
@@ -3348,8 +3996,11 @@ class MainWindow(QMainWindow):
                     it_card.setStyleSheet("""
                         QFrame {
                             background: #0D1626;
-                            border: 1px solid rgba(56, 189, 248, 0.15);
+                            border: 1px solid rgba(56, 189, 248, 0.2);
                             border-radius: 16px;
+                        }
+                        QFrame:hover {
+                            border-color: #38BDF8;
                         }
                     """)
                     it_layout = QVBoxLayout(it_card)
@@ -3358,12 +4009,12 @@ class MainWindow(QMainWindow):
 
                     img_path = item.get("image_path", "")
                     img_lbl = QLabel()
-                    img_lbl.setFixedHeight(160)
+                    img_lbl.setFixedHeight(140)
                     img_lbl.setAlignment(Qt.AlignCenter)
-                    img_lbl.setStyleSheet("background: #060A12; border-radius: 12px;")
+                    img_lbl.setStyleSheet("background: #060A12; border-radius: 10px;")
 
                     if img_path and os.path.exists(img_path):
-                        pix = QPixmap(img_path).scaled(240, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        pix = QPixmap(img_path).scaled(240, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                         img_lbl.setPixmap(pix)
                     else:
                         img_lbl.setText("🖼️ صورة غير متوفرة")
@@ -3371,7 +4022,8 @@ class MainWindow(QMainWindow):
                     it_layout.addWidget(img_lbl)
 
                     item_title = QLabel(item.get("title", "إنجاز بدون اسم"))
-                    item_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #F1F5F9;")
+                    item_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #F1F5F9;")
+                    item_title.setWordWrap(True)
                     it_layout.addWidget(item_title)
 
                     if item.get("date"):
@@ -3380,23 +4032,25 @@ class MainWindow(QMainWindow):
                         it_layout.addWidget(date_l)
 
                     act_h = QHBoxLayout()
-                    btn_view = QPushButton("عرض المكبرة 🔍")
-                    btn_view.setStyleSheet("background: rgba(56, 189, 248, 0.15); color: #38BDF8; font-weight: bold; border-radius: 8px; padding: 6px 12px;")
+                    act_h.setSpacing(8)
+
+                    btn_view = QPushButton("🔍 تكبير الصورة")
+                    btn_view.setStyleSheet("background: rgba(56, 189, 248, 0.15); color: #38BDF8; font-weight: bold; font-size: 12px; border-radius: 8px; padding: 6px 12px; border: 1px solid rgba(56,189,248,0.3);")
                     btn_view.setCursor(Qt.PointingHandCursor)
                     ipath = img_path
                     ititle = item.get("title", "")
-                    btn_view.clicked.connect(lambda ch, p=ipath, t=ititle: self.show_image_viewer(p, t))
+                    btn_view.clicked.connect(lambda ch=False, p=ipath, t=ititle: self.show_image_viewer(p, t))
 
                     btn_del_item = QPushButton()
                     btn_del_item.setObjectName("IconTrashBtn")
                     btn_del_item.setCursor(Qt.PointingHandCursor)
-                    btn_del_item.setFixedSize(34, 34)
+                    btn_del_item.setFixedSize(32, 32)
                     trash_pix = get_tinted_pixmap("trash.png", "#EF4444", QSize(16, 16))
                     if not trash_pix.isNull():
                         btn_del_item.setIcon(QIcon(trash_pix))
                     iid = item["id"]
                     fid = folder["id"]
-                    btn_del_item.clicked.connect(lambda ch, f_id=fid, i_id=iid: self.delete_portfolio_item(f_id, i_id))
+                    btn_del_item.clicked.connect(lambda ch=False, f_id=fid, i_id=iid: self.delete_portfolio_item(f_id, i_id))
 
                     act_h.addWidget(btn_view, 1)
                     act_h.addWidget(btn_del_item)
@@ -3417,12 +4071,12 @@ class MainWindow(QMainWindow):
         self.reload_portfolio_ui()
 
     def add_portfolio_folder(self):
-        title, ok = QInputDialog.getText(self, "أضف مجلد إنجاز جديد", "اسم المجلد (مثال: شهادات البرمجة والجامعة):")
-        if ok and title.strip():
+        dlg = AddPortfolioFolderDialog(self)
+        if dlg.exec() == QDialog.Accepted and dlg.folder_title:
             folder_id = f"folder_{int(datetime.datetime.now().timestamp())}"
             new_folder = {
                 "id": folder_id,
-                "title": title.strip(),
+                "title": dlg.folder_title,
                 "icon": "rocketlogo.png",
                 "items": []
             }
@@ -3433,48 +4087,54 @@ class MainWindow(QMainWindow):
             self.reload_portfolio_ui()
 
     def delete_portfolio_folder(self, folder_id):
-        reply = QMessageBox.question(self, "حذف المجلد", "هل أنت تأكد من حذف هذا المجلد وجميع الشهادات والإنجازات بداخله؟", QMessageBox.Yes | QMessageBox.No)
+        reply = QMessageBox.question(
+            self,
+            "حذف المجلد",
+            "هل أنت تأكد من حذف هذا المجلد وجميع الشهادات والإنجازات بداخله؟",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
         if reply == QMessageBox.Yes:
-            self.config["portfolio_folders"] = [f for f in self.config.get("portfolio_folders", []) if f["id"] != folder_id]
+            self.config["portfolio_folders"] = [f for f in self.config.get("portfolio_folders", []) if f.get("id") != folder_id]
             self.cfg_mgr.save_config()
-            if self.current_portfolio_folder_id == folder_id:
+            if getattr(self, "current_portfolio_folder_id", None) == folder_id:
                 self.current_portfolio_folder_id = None
             self.reload_portfolio_ui()
 
     def add_portfolio_item(self, folder_id):
-        file_path, _ = QFileDialog.getOpenFileName(self, "اختر صورة الشهادة أو الإنجاز", "", "Images (*.png *.jpg *.jpeg *.bmp *.webp)")
-        if not file_path:
-            return
-
-        title, ok = QInputDialog.getText(self, "اسم الشهادة أو الإنجاز", "أدخل اسم أو عنوان الشهادة:")
-        if not ok or not title.strip():
-            title = "شهادة إنجاز"
-
-        item_id = f"item_{int(datetime.datetime.now().timestamp())}"
-        new_item = {
-            "id": item_id,
-            "title": title.strip(),
-            "image_path": file_path,
-            "date": datetime.date.today().strftime("%Y-%m-%d")
-        }
-
-        for folder in self.config.get("portfolio_folders", []):
-            if folder["id"] == folder_id:
+        folder = next((f for f in self.config.get("portfolio_folders", []) if f.get("id") == folder_id), None)
+        folder_name = folder.get("title", "") if folder else ""
+        dlg = AddPortfolioItemDialog(folder_name=folder_name, parent=self)
+        if dlg.exec() == QDialog.Accepted and dlg.file_path:
+            item_id = f"item_{int(datetime.datetime.now().timestamp())}"
+            new_item = {
+                "id": item_id,
+                "title": dlg.item_title,
+                "image_path": dlg.file_path,
+                "date": datetime.date.today().strftime("%Y-%m-%d")
+            }
+            if folder:
                 if "items" not in folder:
                     folder["items"] = []
                 folder["items"].append(new_item)
-                break
-
-        self.cfg_mgr.save_config()
-        self.reload_portfolio_ui()
+                self.cfg_mgr.save_config()
+                self.reload_portfolio_ui()
 
     def delete_portfolio_item(self, folder_id, item_id):
-        for folder in self.config.get("portfolio_folders", []):
-            if folder["id"] == folder_id:
-                folder["items"] = [it for it in folder.get("items", []) if it["id"] != item_id]
-                break
-        self.cfg_mgr.save_config()
-        self.reload_portfolio_ui()
+        reply = QMessageBox.question(
+            self,
+            "حذف الشهادة",
+            "هل تريد حذف هذه الشهادة من المجلد؟",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            for folder in self.config.get("portfolio_folders", []):
+                if folder.get("id") == folder_id:
+                    folder["items"] = [it for it in folder.get("items", []) if it.get("id") != item_id]
+                    break
+            self.cfg_mgr.save_config()
+            self.reload_portfolio_ui()
 
     def show_image_viewer(self, image_path, title_text):
         if not image_path or not os.path.exists(image_path):
@@ -3499,3 +4159,395 @@ class MainWindow(QMainWindow):
         vbox.addWidget(lbl_img, 1)
 
         dlg.exec()
+
+    # ─── PRAYER TIMES PAGE ──────────────────────────────────────────────────
+    def create_prayer_times_page(self):
+        page = QWidget()
+        page.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(16)
+
+        hdr = QFrame()
+        hdr.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #064E3B, stop:0.5 #065F46, stop:1 #047857);
+                border: 1px solid #34D399;
+                border-radius: 20px;
+            }
+        """)
+        hdr_layout = QHBoxLayout(hdr)
+        hdr_layout.setContentsMargins(24, 20, 24, 20)
+
+        title_vb = QVBoxLayout()
+        title_vb.setSpacing(4)
+        title = QLabel("🕌 مواعيد وتنبيهات الصلوات الخمس")
+        title.setStyleSheet("font-size: 26px; font-weight: bold; color: #FFFFFF;")
+        desc = QLabel("أدخل وقت كل صلاة يدوياً بالـ (الساعة والدقيقة). عند حلول الوقت سيتم تنبيهك وإيقاف جميع الألعاب والمشتتات لمدة 5 دقائق لأداء الصلاة.")
+        desc.setStyleSheet("color: #D1FAE5; font-size: 13px;")
+        title_vb.addWidget(title)
+        title_vb.addWidget(desc)
+        hdr_layout.addLayout(title_vb, 1)
+
+        btn_save_top = QPushButton("💾 حفظ مواعيد الصلاة")
+        btn_save_top.setStyleSheet("background: #10B981; color: white; font-weight: bold; font-size: 15px; border-radius: 12px; padding: 12px 24px; border: none;")
+        btn_save_top.setCursor(Qt.PointingHandCursor)
+        hdr_layout.addWidget(btn_save_top)
+
+        layout.addWidget(hdr)
+
+        enable_card = QFrame()
+        enable_card.setObjectName("Card")
+        enable_layout = QHBoxLayout(enable_card)
+        enable_layout.setContentsMargins(20, 14, 20, 14)
+
+        chk_enable_prayer = QCheckBox("تفعيل تنبيهات الصلاة والتوقف الإجباري لمدة 5 دقائق")
+        chk_enable_prayer.setStyleSheet("font-size: 16px; font-weight: bold; color: #34D399;")
+        p_cfg = self.config.get("prayer_times", {"enabled": True, "times": {}})
+        chk_enable_prayer.setChecked(p_cfg.get("enabled", True))
+
+        enable_layout.addWidget(chk_enable_prayer)
+        layout.addWidget(enable_card)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; } QScrollBar:vertical { background: #0B0F19; width: 8px; border-radius: 4px; }")
+
+        scroll_w = QWidget()
+        scroll_w.setStyleSheet("background: transparent;")
+        prayers_vbox = QVBoxLayout(scroll_w)
+        prayers_vbox.setSpacing(14)
+        prayers_vbox.setContentsMargins(0, 0, 0, 0)
+
+        prayers_def = [
+            ("الفجر",  "🌅 صلاة الفجر",  "04:45"),
+            ("الظهر",  "☀️ صلاة الظهر",  "12:15"),
+            ("العصر",  "🌤️ صلاة العصر",  "15:35"),
+            ("المغرب", "🌅 صلاة المغرب", "18:10"),
+            ("العشاء", "🌙 صلاة العشاء", "19:40")
+        ]
+
+        saved_times = p_cfg.get("times", {})
+        self.prayer_inputs = {}
+
+        for key_name, display_name, default_time in prayers_def:
+            current_24h = saved_times.get(key_name, default_time)
+            
+            try:
+                h_24, m_24 = map(int, current_24h.split(":"))
+            except:
+                h_24, m_24 = 12, 0
+
+            if h_24 == 0:
+                h_12 = 12
+                period_str = "صباحاً AM"
+            elif h_24 == 12:
+                h_12 = 12
+                period_str = "مساءً PM"
+            elif h_24 > 12:
+                h_12 = h_24 - 12
+                period_str = "مساءً PM"
+            else:
+                h_12 = h_24
+                period_str = "صباحاً AM"
+
+            p_card = QFrame()
+            p_card.setStyleSheet("""
+                QFrame {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0F1E19, stop:1 #0A1411);
+                    border: 1px solid rgba(52, 211, 153, 0.2);
+                    border-radius: 16px;
+                }
+                QFrame:hover {
+                    border-color: #34D399;
+                }
+            """)
+            p_layout = QHBoxLayout(p_card)
+            p_layout.setContentsMargins(20, 16, 20, 16)
+            p_layout.setSpacing(16)
+
+            lbl_pname = QLabel(display_name)
+            lbl_pname.setStyleSheet("font-size: 18px; font-weight: bold; color: #F1F5F9;")
+            lbl_pname.setMinimumWidth(160)
+
+            in_layout = QHBoxLayout()
+            in_layout.setSpacing(8)
+
+            lbl_h = QLabel("الساعة:")
+            lbl_h.setStyleSheet("color: #94A3B8; font-weight: bold;")
+            
+            txt_hour = QLineEdit()
+            txt_hour.setText(str(h_12))
+            txt_hour.setFixedWidth(70)
+            txt_hour.setAlignment(Qt.AlignCenter)
+            txt_hour.setPlaceholderText("9")
+            txt_hour.setStyleSheet("font-size: 16px; font-weight: bold; color: #34D399; background: #060A12; border: 1px solid #10B981;")
+
+            lbl_colon = QLabel(":")
+            lbl_colon.setStyleSheet("font-size: 20px; font-weight: bold; color: #34D399;")
+
+            lbl_m = QLabel("الدقيقة:")
+            lbl_m.setStyleSheet("color: #94A3B8; font-weight: bold;")
+
+            txt_min = QLineEdit()
+            txt_min.setText(f"{m_24:02d}")
+            txt_min.setFixedWidth(70)
+            txt_min.setAlignment(Qt.AlignCenter)
+            txt_min.setPlaceholderText("45")
+            txt_min.setStyleSheet("font-size: 16px; font-weight: bold; color: #34D399; background: #060A12; border: 1px solid #10B981;")
+
+            cmb_period = QComboBox()
+            cmb_period.addItems(["صباحاً AM", "مساءً PM"])
+            cmb_period.setCurrentText(period_str)
+            cmb_period.setStyleSheet("font-size: 14px; font-weight: bold; color: #F1F5F9; background: #060A12;")
+
+            lbl_preview = QLabel(f"التوقيت الفعلي: {current_24h}")
+            lbl_preview.setStyleSheet("color: #64748B; font-size: 13px; font-weight: bold;")
+
+            def update_preview_label(h_txt=None, m_txt=None, per_txt=None, key=key_name, l_prev=lbl_preview, t_h=txt_hour, t_m=txt_min, c_p=cmb_period):
+                try:
+                    h_val = int(t_h.text().strip())
+                    m_val = int(t_m.text().strip())
+                    period = c_p.currentText()
+
+                    if h_val < 1: h_val = 1
+                    if h_val > 12: h_val = 12
+                    if m_val < 0: m_val = 0
+                    if m_val > 59: m_val = 59
+
+                    if "مساءً" in period:
+                        h24 = 12 if h_val == 12 else h_val + 12
+                    else:
+                        h24 = 0 if h_val == 12 else h_val
+
+                    res_str = f"{h24:02d}:{m_val:02d}"
+                    l_prev.setText(f"التوقيت الفعلي: {res_str}")
+                except:
+                    pass
+
+            txt_hour.textChanged.connect(update_preview_label)
+            txt_min.textChanged.connect(update_preview_label)
+            cmb_period.currentIndexChanged.connect(update_preview_label)
+
+            in_layout.addWidget(lbl_h)
+            in_layout.addWidget(txt_hour)
+            in_layout.addWidget(lbl_colon)
+            in_layout.addWidget(lbl_m)
+            in_layout.addWidget(txt_min)
+            in_layout.addWidget(cmb_period)
+
+            p_layout.addWidget(lbl_pname)
+            p_layout.addLayout(in_layout)
+            p_layout.addStretch()
+            p_layout.addWidget(lbl_preview)
+
+            prayers_vbox.addWidget(p_card)
+
+            self.prayer_inputs[key_name] = (txt_hour, txt_min, cmb_period, lbl_preview)
+
+        # ── SUNNAH & AZKAR SECTION ──────────────────────────────────────────────
+        sunnah_hdr = QFrame()
+        sunnah_hdr.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #1E1B4B, stop:0.5 #311042, stop:1 #0F172A);
+                border: 1px solid #A855F7;
+                border-radius: 18px;
+                margin-top: 15px;
+            }
+        """)
+        sunnah_hdr_layout = QHBoxLayout(sunnah_hdr)
+        sunnah_hdr_layout.setContentsMargins(20, 16, 20, 16)
+
+        s_title_vb = QVBoxLayout()
+        s_title_vb.setSpacing(4)
+        s_title = QLabel("📿 تنبيهات السنن والأذكار والنوافل")
+        s_title.setStyleSheet("font-size: 22px; font-weight: bold; color: #FFFFFF;")
+        s_desc = QLabel("حدد السنن والأذكار التي تود التذكير بها واضبط ووقتها المحدد:")
+        s_desc.setStyleSheet("color: #E9D5FF; font-size: 13px;")
+        s_title_vb.addWidget(s_title)
+        s_title_vb.addWidget(s_desc)
+        sunnah_hdr_layout.addLayout(s_title_vb, 1)
+
+        prayers_vbox.addWidget(sunnah_hdr)
+
+        sunnah_cfg = self.config.get("sunnah_reminders", {"enabled": True, "items": []})
+        chk_enable_sunnah_master = QCheckBox("تفعيل تنبيهات السنن والأذكار النفلية")
+        chk_enable_sunnah_master.setStyleSheet("font-size: 16px; font-weight: bold; color: #C084FC;")
+        chk_enable_sunnah_master.setChecked(sunnah_cfg.get("enabled", True))
+        prayers_vbox.addWidget(chk_enable_sunnah_master)
+
+        sunnah_items_def = sunnah_cfg.get("items", [
+            {"id": "sunnah_duha", "name": "☀️ صلاة الضحى", "time": "09:30", "enabled": True},
+            {"id": "sunnah_azkar_m", "name": "🌅 أذكار الصباح", "time": "06:30", "enabled": True},
+            {"id": "sunnah_azkar_e", "name": "<ctrl42> أذكار المساء", "time": "17:00", "enabled": True},
+            {"id": "sunnah_qiyam", "name": "🌙 صلاة قيام الليل والوتر", "time": "02:00", "enabled": True},
+            {"id": "sunnah_fajr", "name": "🌅 سنة الفجر (الركعتين)", "time": "04:30", "enabled": True}
+        ])
+
+        self.sunnah_inputs = {}
+
+        for item in sunnah_items_def:
+            s_id = item["id"]
+            s_name = item["name"]
+            s_time = item.get("time", "09:00")
+            s_enabled = item.get("enabled", True)
+
+            try:
+                h_24, m_24 = map(int, s_time.split(":"))
+            except:
+                h_24, m_24 = 9, 0
+
+            if h_24 == 0:
+                h_12, period_str = 12, "صباحاً AM"
+            elif h_24 == 12:
+                h_12, period_str = 12, "مساءً PM"
+            elif h_24 > 12:
+                h_12, period_str = h_24 - 12, "مساءً PM"
+            else:
+                h_12, period_str = h_24, "صباحاً AM"
+
+            s_card = QFrame()
+            s_card.setStyleSheet("""
+                QFrame {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1A102F, stop:1 #0F0A1C);
+                    border: 1px solid rgba(168, 85, 247, 0.2);
+                    border-radius: 16px;
+                }
+                QFrame:hover {
+                    border-color: #A855F7;
+                }
+            """)
+            s_layout = QHBoxLayout(s_card)
+            s_layout.setContentsMargins(18, 14, 18, 14)
+            s_layout.setSpacing(14)
+
+            chk_item = QCheckBox(s_name)
+            chk_item.setChecked(s_enabled)
+            chk_item.setStyleSheet("font-size: 16px; font-weight: bold; color: #F1F5F9;")
+            chk_item.setMinimumWidth(180)
+
+            in_layout = QHBoxLayout()
+            in_layout.setSpacing(8)
+
+            txt_hour = QLineEdit(str(h_12))
+            txt_hour.setFixedWidth(65)
+            txt_hour.setAlignment(Qt.AlignCenter)
+            txt_hour.setStyleSheet("font-size: 15px; font-weight: bold; color: #C084FC; background: #060A12; border: 1px solid #8B5CF6;")
+
+            lbl_colon = QLabel(":")
+            lbl_colon.setStyleSheet("font-size: 18px; font-weight: bold; color: #C084FC;")
+
+            txt_min = QLineEdit(f"{m_24:02d}")
+            txt_min.setFixedWidth(65)
+            txt_min.setAlignment(Qt.AlignCenter)
+            txt_min.setStyleSheet("font-size: 15px; font-weight: bold; color: #C084FC; background: #060A12; border: 1px solid #8B5CF6;")
+
+            cmb_period = QComboBox()
+            cmb_period.addItems(["صباحاً AM", "مساءً PM"])
+            cmb_period.setCurrentText(period_str)
+            cmb_period.setStyleSheet("font-size: 13px; font-weight: bold; color: #F1F5F9; background: #060A12;")
+
+            lbl_preview = QLabel(f"التوقيت: {s_time}")
+            lbl_preview.setStyleSheet("color: #94A3B8; font-size: 12px; font-weight: bold;")
+
+            def update_sunnah_preview(t_h=txt_hour, t_m=txt_min, c_p=cmb_period, l_p=lbl_preview):
+                try:
+                    hv = int(t_h.text().strip() or "12")
+                    mv = int(t_m.text().strip() or "0")
+                    p = c_p.currentText()
+                    if hv < 1: hv = 1
+                    if hv > 12: hv = 12
+                    if mv < 0: mv = 0
+                    if mv > 59: mv = 59
+                    if "مساءً" in p:
+                        h24 = 12 if hv == 12 else hv + 12
+                    else:
+                        h24 = 0 if hv == 12 else hv
+                    l_p.setText(f"التوقيت: {h24:02d}:{mv:02d}")
+                except:
+                    pass
+
+            txt_hour.textChanged.connect(update_sunnah_preview)
+            txt_min.textChanged.connect(update_sunnah_preview)
+            cmb_period.currentIndexChanged.connect(update_sunnah_preview)
+
+            in_layout.addWidget(txt_hour)
+            in_layout.addWidget(lbl_colon)
+            in_layout.addWidget(txt_min)
+            in_layout.addWidget(cmb_period)
+
+            s_layout.addWidget(chk_item)
+            s_layout.addLayout(in_layout)
+            s_layout.addStretch()
+            s_layout.addWidget(lbl_preview)
+
+            prayers_vbox.addWidget(s_card)
+            self.sunnah_inputs[s_id] = (chk_item, txt_hour, txt_min, cmb_period, s_name)
+
+        scroll.setWidget(scroll_w)
+        layout.addWidget(scroll)
+
+        def save_prayers():
+            new_times = {}
+            for k, (t_h, t_m, c_p, _) in self.prayer_inputs.items():
+                try:
+                    h_val = int(t_h.text().strip() or "12")
+                    m_val = int(t_m.text().strip() or "0")
+                    period = c_p.currentText()
+
+                    if h_val < 1: h_val = 1
+                    if h_val > 12: h_val = 12
+                    if m_val < 0: m_val = 0
+                    if m_val > 59: m_val = 59
+
+                    if "مساءً" in period:
+                        h24 = 12 if h_val == 12 else h_val + 12
+                    else:
+                        h24 = 0 if h_val == 12 else h_val
+
+                    new_times[k] = f"{h24:02d}:{m_val:02d}"
+                except Exception as e:
+                    print(f"Error parsing prayer time for {k}: {e}")
+
+            self.config["prayer_times"] = {
+                "enabled": chk_enable_prayer.isChecked(),
+                "times": new_times
+            }
+
+            new_sunnah_items = []
+            for s_id, (chk_item, t_h, t_m, c_p, s_name) in self.sunnah_inputs.items():
+                try:
+                    hv = int(t_h.text().strip() or "12")
+                    mv = int(t_m.text().strip() or "0")
+                    p = c_p.currentText()
+                    if hv < 1: hv = 1
+                    if hv > 12: hv = 12
+                    if mv < 0: mv = 0
+                    if mv > 59: mv = 59
+                    if "مساءً" in p:
+                        h24 = 12 if hv == 12 else hv + 12
+                    else:
+                        h24 = 0 if hv == 12 else hv
+                    t_str = f"{h24:02d}:{mv:02d}"
+                except:
+                    t_str = "09:00"
+
+                new_sunnah_items.append({
+                    "id": s_id,
+                    "name": s_name,
+                    "time": t_str,
+                    "enabled": chk_item.isChecked()
+                })
+
+            self.config["sunnah_reminders"] = {
+                "enabled": chk_enable_sunnah_master.isChecked(),
+                "items": new_sunnah_items
+            }
+
+            self.cfg_mgr.save_config()
+            QMessageBox.information(page, "تم الحفظ 🕌", "تم حفظ مواعيد الصلوات الخمس والسنن والأذكار بنجاح!")
+
+        btn_save_top.clicked.connect(save_prayers)
+        return page

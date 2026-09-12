@@ -12,12 +12,6 @@ class AudioManager:
         self.player.setAudioOutput(self.audio_output)
         self.audio_output.setVolume(1.0) # Full volume
 
-        # Find sound file
-        sound_path = self.get_asset_path("alarmsound.mp4")
-        if os.path.exists(sound_path):
-            self.player.setSource(QUrl.fromLocalFile(sound_path))
-            self.player.setLoops(QMediaPlayer.Infinite)
-
     def get_asset_path(self, filename):
         # Check bundled path
         if getattr(sys, 'frozen', False):
@@ -35,20 +29,50 @@ class AudioManager:
 
         return ""
 
-    def play_loop_alarm(self):
-        """Plays the custom alarm sound in a continuous loop."""
+    def _play_sound_file(self, filename, loop=True):
         if not self.enabled:
             return
+        sound_path = self.get_asset_path(filename)
+        if not sound_path:
+            # fallback to generic alarm sound if filename missing
+            sound_path = self.get_asset_path("alarmsound.mp4")
+            if not sound_path:
+                sound_path = self.get_asset_path("newsoundforalarm.mp4")
+
         try:
-            self.player.setPosition(0)
-            self.player.play()
+            self.player.stop()
+            if sound_path:
+                self.player.setSource(QUrl.fromLocalFile(sound_path))
+                if loop:
+                    self.player.setLoops(QMediaPlayer.Infinite)
+                else:
+                    self.player.setLoops(1)
+                self.player.setPosition(0)
+                self.player.play()
+            else:
+                winsound.Beep(880, 500)
         except Exception as e:
-            print(f"Error playing sound: {e}")
-            # Fallback beep
+            print(f"Error playing sound {filename}: {e}")
             try:
                 winsound.Beep(880, 500)
             except Exception:
                 pass
+
+    def play_loop_alarm(self):
+        """Plays the general alarm sound in a continuous loop."""
+        self._play_sound_file("newsoundforalarm.mp4", loop=True)
+
+    def play_prayer_alarm(self):
+        """Plays the prayer notification sound from logos sounds."""
+        self._play_sound_file("newalarmsoundforpraying.mp4", loop=True)
+
+    def play_water_alarm(self):
+        """Plays the water reminder alarm sound."""
+        self._play_sound_file("newsoundforalarm.mp4", loop=True)
+
+    def play_eye_rest_alarm(self):
+        """Plays the eye rest reminder alarm sound."""
+        self._play_sound_file("newsoundforalarm.mp4", loop=True)
 
     def stop_alarm(self):
         """Stops sound playback."""
@@ -66,3 +90,4 @@ class AudioManager:
             winsound.Beep(250, 200)
         except Exception:
             pass
+
