@@ -10,53 +10,48 @@ from PySide6.QtCore import Qt
 from asset_helper import get_asset_path
 from gui_main import MainWindow
 
-# ─── Single Instance Lock ───────────────────────────────────────────────────
-MUTEX_NAME = "انتاجيتي_SingleInstance_Mutex"
-_mutex_handle = None
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
-def activate_existing_window():
-    """البحث عن نافذة التطبيق المشغّلة مسبقاً وإحضارها للمقدمة."""
+SERVER_NAME = "InproductivityApp_SingleInstance_IPC"
+
+def setup_single_instance(app):
+    """
+    يتأكد من وجود نسخة واحدة فقط.
+    إذا كان التطبيق يعمل بالفعل (حتى لو كان مخفياً في شريط المهام)،
+    يرسل له إشارة لإظهار النافذة ثم يغلق النسخة الجديدة فوراً.
+    """
+    socket = QLocalSocket()
+    socket.connectToServer(SERVER_NAME)
+    if socket.waitForConnected(500):
+        # التطبيق يعمل بالفعل! نرسل أمر الإظهار وننهي العملية الجديدة
+        socket.write(b"SHOW")
+        socket.waitForBytesWritten(1000)
+        socket.disconnectFromServer()
+        sys.exit(0)
+
+    # النسخة الأولى — ننشئ سيرفر استماع محلي
+    server = QLocalServer()
+    QLocalServer.removeServer(SERVER_NAME)  # تنظيف أي بقايا سابقة
+    if not server.listen(SERVER_NAME):
+        QLocalServer.removeServer(SERVER_NAME)
+        server.listen(SERVER_NAME)
+    return server
+
+def restore_existing_window(window):
+    """إعادة إظهار النافذة القديمة وإحضارها لمقدمة الشاشة."""
     import win32gui
     import win32con
 
-    target_hwnd = None
-
-    def enum_windows_callback(hwnd, extra):
-        nonlocal target_hwnd
-        if win32gui.IsWindowVisible(hwnd):
-            title = win32gui.GetWindowText(hwnd)
-            if "مركز الإنتاجية الذكي" in title or "انتاجيتي" in title:
-                target_hwnd = hwnd
-                return False
-        return True
+    window.showNormal()
+    window.activateWindow()
+    window.raise_()
 
     try:
-        win32gui.EnumWindows(enum_windows_callback, None)
+        hwnd = int(window.winId())
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        win32gui.SetForegroundWindow(hwnd)
     except Exception:
         pass
-
-    if target_hwnd:
-        # إظهار النافذة وإحضارها إلى الشاشة واستعادتها إذا كانت مصغرة
-        win32gui.ShowWindow(target_hwnd, win32con.SW_RESTORE)
-        win32gui.SetForegroundWindow(target_hwnd)
-        return True
-    return False
-
-def ensure_single_instance():
-    """
-    يمنع تشغيل أكثر من نسخة واحدة من التطبيق في نفس الوقت.
-    إذا كانت نسخة مشغّلة، تُرفع نافذتها وتغلق النسخة الجديدة فوراً بدون رسائل خطأ مزعجة.
-    """
-    global _mutex_handle
-    _mutex_handle = win32event.CreateMutex(None, True, MUTEX_NAME)
-    last_error = win32api.GetLastError()
-
-    if last_error == winerror.ERROR_ALREADY_EXISTS:
-        # نسخة ثانية → نرفع النافذة القديمة للمقدمة وننهي النسخة الثانية
-        activate_existing_window()
-        sys.exit(0)
-
-    return _mutex_handle
 
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -107,11 +102,10 @@ def get_app_icon():
     return QIcon(pixmap)
 
 if __name__ == "__main__":
-    # ✅ منع تعدد النسخ — يجب أن يكون قبل أي شيء آخر
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
-    ensure_single_instance()
+    server = setup_single_instance(app)
 
     register_in_windows_search()
     load_custom_font(app)
@@ -122,5 +116,17 @@ if __name__ == "__main__":
     window = MainWindow()
     window.tray_icon.setIcon(icon)
     window.show()
+
+    # الاستماع للنسخ الجديدة التي تفتح من البحث لإعادة إظهار النافذة الحالية
+    def on_new_connection():
+        client = server.nextPendingConnection()
+        if client:
+            client.waitForReadyRead(500)
+            msg = client.readAll().data().decode("utf-8", errors="ignore")
+            if "SHOW" in msg or not msg:
+                restore_existing_window(window)
+            client.disconnectFromServer()
+
+    server.newConnection.connect(on_new_connection)
 
     sys.exit(app.exec())
