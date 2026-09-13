@@ -359,6 +359,8 @@ class StartScheduleOverlayWindow(BaseOverlay):
     def _confirm(self):
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
+            if hasattr(self.audio_mgr, "play_success_sound"):
+                self.audio_mgr.play_success_sound()
         cb = self._confirm_cb
         self._confirm_cb = None
         self.on_finish_callback = None
@@ -449,6 +451,8 @@ class WaterOverlayWindow(BaseOverlay):
     def _done(self):
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
+            if hasattr(self.audio_mgr, "play_success_sound"):
+                self.audio_mgr.play_success_sound()
         cb = self.on_finish_callback
         self.on_finish_callback = None
         self.close()
@@ -716,6 +720,8 @@ class ExerciseOverlayWindow(QWidget):
     def _done(self):
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
+            if hasattr(self.audio_mgr, "play_success_sound"):
+                self.audio_mgr.play_success_sound()
         cb = self.on_finish_callback
         self.on_finish_callback = None
         self.close()
@@ -949,16 +955,16 @@ class PrayerOverlayWindow(QWidget):
         cd_lay.addWidget(cd_sub)
         cl.addWidget(cd_frame)
 
-        btn = QPushButton("تقبّل الله  ·  إغلاق التنبيه  🤲")
-        btn.setObjectName("Btn")
-        btn.setCursor(Qt.PointingHandCursor)
-        glow = QGraphicsDropShadowEffect(btn)
+        self.btn = QPushButton("تقبّل الله  ·  إغلاق التنبيه  🤲")
+        self.btn.setObjectName("Btn")
+        self.btn.setCursor(Qt.PointingHandCursor)
+        glow = QGraphicsDropShadowEffect(self.btn)
         glow.setBlurRadius(35)
         glow.setColor(QColor(accent + "90"))
         glow.setOffset(0, 0)
-        btn.setGraphicsEffect(glow)
-        btn.clicked.connect(self._done)
-        cl.addWidget(btn, alignment=Qt.AlignCenter)
+        self.btn.setGraphicsEffect(glow)
+        self.btn.clicked.connect(self._done)
+        cl.addWidget(self.btn, alignment=Qt.AlignCenter)
 
         hint = QLabel("Alt + F4 للحالات الضرورية فقط")
         hint.setObjectName("Hint")
@@ -974,11 +980,24 @@ class PrayerOverlayWindow(QWidget):
             s = self.seconds_left % 60
             self.lbl_countdown.setText(f"{m:02d}:{s:02d}")
         else:
-            self.lbl_countdown.setText("تقبّل الله طاعتكم 🤲")
+            self._timer.stop()
+            self.lbl_countdown.setText("✓  تقبّل الله طاعتكم 🤲")
+            self.lbl_countdown.setStyleSheet("font-size: 36px; font-weight: 900; color: #34D399; font-family: 'Madika Arabic TRIAL', 'Segoe UI', sans-serif;")
+            self.btn.setText("✓ اكتمل وقت الصلاة (5 دقائق)  ·  إغلاق وتوقف الانذار  🤲")
+            self.btn.setStyleSheet("""
+                QPushButton#Btn {
+                    background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #10B981, stop:1 #059669);
+                    color: #FFFFFF; font-size: 20px; font-weight: bold;
+                    border-radius: 18px; padding: 16px 52px; border: 2px solid #6EE7B7;
+                }
+                QPushButton#Btn:hover { background: #059669; }
+            """)
 
     def _done(self):
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
+            if hasattr(self.audio_mgr, "play_success_sound"):
+                self.audio_mgr.play_success_sound()
         cb = self.on_finish_callback
         self.on_finish_callback = None
         self.close()
@@ -1228,6 +1247,8 @@ class EyeRestOverlayWindow(QWidget):
     def _done(self):
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
+            if hasattr(self.audio_mgr, "play_success_sound"):
+                self.audio_mgr.play_success_sound()
         cb = self.on_finish_callback
         self.on_finish_callback = None
         self.close()
@@ -1418,6 +1439,8 @@ class AppointmentReminderOverlay(QWidget):
     def _done(self):
         if self.audio_mgr:
             self.audio_mgr.stop_alarm()
+            if hasattr(self.audio_mgr, "play_success_sound"):
+                self.audio_mgr.play_success_sound()
         cb = self.on_close_callback
         self.on_close_callback = None
         self.close()

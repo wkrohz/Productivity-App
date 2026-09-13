@@ -81,6 +81,27 @@ class AudioManager:
         except Exception:
             pass
 
+    def play_success_sound(self):
+        """Stops any looping alarm and plays a cheerful completion sound/chime."""
+        if not self.enabled:
+            return
+        self.stop_alarm()
+        sound_path = self.get_asset_path("success.mp4")
+        try:
+            if sound_path and os.path.exists(sound_path):
+                self.player.setSource(QUrl.fromLocalFile(sound_path))
+                self.player.setLoops(1)
+                self.player.setPosition(0)
+                self.player.play()
+            else:
+                # Cheerful win chime arpeggio
+                winsound.Beep(523, 100)  # C5
+                winsound.Beep(659, 100)  # E5
+                winsound.Beep(784, 100)  # G5
+                winsound.Beep(1046, 250) # C6
+        except Exception as e:
+            print(f"Error playing success sound: {e}")
+
     def play_blocked_warning(self):
         """Plays a brief warning tone when a blocked app is attempt-closed."""
         if not self.enabled:

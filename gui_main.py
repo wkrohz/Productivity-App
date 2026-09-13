@@ -605,9 +605,9 @@ class MainWindow(QMainWindow):
             }
             self.cfg_mgr.save_config()
 
-        self.water_timer_counter = 0
-        self.pushups_timer_counter = 0
-        self.eye_rest_counter = 0
+        self.water_timer_counter = self.config.get("water_timer_counter", 0)
+        self.pushups_timer_counter = self.config.get("pushups_timer_counter", 0)
+        self.eye_rest_counter = self.config.get("eye_rest_counter", 0)
         self.study_motivate_counter = 0
         self.last_triggered_schedule_key = ""
         self.last_sunnah_key = ""
@@ -2433,13 +2433,13 @@ class MainWindow(QMainWindow):
                 badge_text = "🔔 تذكير فقط"
                 badge_style = "background: rgba(245,158,11,0.15); color: #F59E0B; border: 1px solid rgba(245,158,11,0.4); font-size: 12px; font-weight: bold; border-radius: 8px; padding: 4px 10px;"
             elif st_type == 'strict':
-                lbl_time = QLabel(f"🔒 من {start_12} إلى {end_12}")
+                lbl_time = QLabel(f"🔒 من \u202A{start_12}\u202C إلى \u202A{end_12}\u202C")
                 lbl_time.setStyleSheet("font-size: 14px; color: #EF4444; font-weight: bold;")
                 row_widget.setStyleSheet("background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #2B0D11, stop:1 #140507); border-right: 4px solid #EF4444; border-radius: 12px;")
                 badge_text = "🔒 صارم إجباري"
                 badge_style = "background: rgba(239,68,68,0.15); color: #EF4444; border: 1px solid rgba(239,68,68,0.4); font-size: 12px; font-weight: bold; border-radius: 8px; padding: 4px 10px;"
             else:
-                lbl_time = QLabel(f"⏱️ من {start_12} إلى {end_12}")
+                lbl_time = QLabel(f"⏱️ من \u202A{start_12}\u202C إلى \u202A{end_12}\u202C")
                 lbl_time.setStyleSheet("font-size: 14px; color: #38BDF8; font-weight: bold;")
                 row_widget.setStyleSheet("background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0A1628, stop:1 #060A12); border-right: 4px solid #38BDF8; border-radius: 12px;")
                 badge_text = "⏱️ تعلم عادي"
@@ -3525,16 +3525,22 @@ class MainWindow(QMainWindow):
     def handle_overlay_finish(self, overlay_type):
         if overlay_type == "water":
             self._water_overlay_open = False
+            self.water_timer_counter = 0
+            self.config["water_timer_counter"] = 0
             self.config["daily_stats"]["water_count"] += 1
             self.lbl_stat_water.setText(f"{self.config['daily_stats']['water_count']} أكواب")
             self.award_points(15, "ماء")
         elif overlay_type == "pushups":
             self._pushups_overlay_open = False
+            self.pushups_timer_counter = 0
+            self.config["pushups_timer_counter"] = 0
             self.config["daily_stats"]["pushups_count"] += 5
             self.lbl_stat_pushups.setText(f"{self.config['daily_stats']['pushups_count']} ضغطات")
             self.award_points(20, "بوش أب")
         elif overlay_type == "eye_rest":
             self._eye_rest_overlay_open = False
+            self.eye_rest_counter = 0
+            self.config["eye_rest_counter"] = 0
         elif overlay_type == "schedule":
             self._schedule_overlay_open = False
         self.cfg_mgr.save_config()
@@ -3548,6 +3554,17 @@ class MainWindow(QMainWindow):
         self.minute_timer = QTimer(self)
         self.minute_timer.timeout.connect(self.minute_tick_loop)
         self.minute_timer.start(60000)
+
+    def _is_time_in_range(self, start_str, end_str, now_str):
+        if not start_str or not end_str or not now_str:
+            return False
+        try:
+            if start_str <= end_str:
+                return start_str <= now_str < end_str
+            else:
+                return now_str >= start_str or now_str < end_str
+        except Exception:
+            return False
 
     def check_processes_loop(self):
         now_dt = datetime.datetime.now()
@@ -3605,18 +3622,33 @@ class MainWindow(QMainWindow):
                         break
 
         # 📅 Schedules Check
-        if not self._schedule_overlay_open:
+        today_date_str = datetime.date.today().isoformat()
+        if "triggered_schedules_today" not in self.config:
+            self.config["triggered_schedules_today"] = {}
+
+        if not getattr(self, "_schedule_overlay_open", False):
             for sched in self.config.get("learning_schedules", []):
-                if sched.get("active", True) and sched["start"] == now_str:
-                    sched_key = f"{sched['name']}_{now_str}"
-                    if self.last_triggered_schedule_key != sched_key:
-                        self.last_triggered_schedule_key = sched_key
-                        
-                        s_type = sched.get("type", "standard")
+                if sched.get("active", True):
+                    s_start = sched.get("start", "")
+                    s_end = sched.get("end", "")
+                    s_name = sched.get("name", "جلسة تعلم")
+                    s_type = sched.get("type", "standard")
+
+                    is_exact_start = (s_start == now_str)
+                    is_in_range = self._is_time_in_range(s_start, s_end, now_str)
+
+                    sched_today_key = f"{s_name}_{today_date_str}_{s_start}"
+                    already_triggered_today = self.config["triggered_schedules_today"].get(sched_today_key, False)
+
+                    if (is_exact_start or is_in_range) and not already_triggered_today and not self.config.get("manual_session_active", False):
+                        self.config["triggered_schedules_today"][sched_today_key] = True
+                        self.cfg_mgr.save_config()
+
                         if s_type == "reminder":
+                            formatted_range = f"من \u202A{format_12h(s_start)}\u202C إلى \u202A{format_12h(s_end)}\u202C" if s_end else format_12h(s_start)
                             self._appointment_overlay = AppointmentReminderOverlay(
-                                appointment_name=sched['name'],
-                                appointment_time=sched.get('start', ''),
+                                appointment_name=s_name,
+                                appointment_time=formatted_range,
                                 is_strict=False,
                                 audio_mgr=self.audio_mgr,
                                 on_close_callback=None
@@ -3626,7 +3658,7 @@ class MainWindow(QMainWindow):
                             if s_type == "strict":
                                 self.config["manual_session_is_strict"] = True
                             self.sched_overlay = StartScheduleOverlayWindow(
-                                sched_name=sched["name"],
+                                sched_name=s_name,
                                 audio_mgr=self.audio_mgr,
                                 on_confirm_callback=self._on_schedule_confirmed
                             )
@@ -3635,27 +3667,34 @@ class MainWindow(QMainWindow):
         # 🏁 Auto-end Learning Session when scheduled end time is reached
         if self.config.get("manual_session_active", False) or self.app_blocker.is_active:
             for sched in self.config.get("learning_schedules", []):
-                if sched.get("active", True) and sched.get("end") == now_str:
-                    sched_end_key = f"end_{sched['name']}_{now_str}"
-                    if getattr(self, "last_ended_schedule_key", "") != sched_end_key:
-                        self.last_ended_schedule_key = sched_end_key
-                        self.config["manual_session_is_strict"] = False
-                        self.finish_learning_session()
-                        if hasattr(self, "tray_icon") and self.tray_icon:
-                            self.tray_icon.showMessage(
-                                "🎉 انتهت جلسة التعلم",
-                                f"وصلنا إلى موعد نهاية {sched['name']} ({sched.get('end')}). تم إلغاء حظر التطبيقات بنجاح!",
-                                QSystemTrayIcon.Information,
-                                7000
-                            )
-                        break
+                if sched.get("active", True):
+                    s_end = sched.get("end", "")
+                    s_name = sched.get("name", "")
+                    if s_end and (now_str == s_end or (s_end < now_str and not self._is_time_in_range(sched.get("start", ""), s_end, now_str))):
+                        sched_end_key = f"end_{s_name}_{today_date_str}_{s_end}"
+                        if getattr(self, "last_ended_schedule_key", "") != sched_end_key:
+                            self.last_ended_schedule_key = sched_end_key
+                            self.config["manual_session_is_strict"] = False
+                            self.finish_learning_session()
+                            if self.audio_mgr:
+                                self.audio_mgr.play_success_sound()
+                            if hasattr(self, "tray_icon") and self.tray_icon:
+                                self.tray_icon.showMessage(
+                                    "🎉 انتهت جلسة التعلم",
+                                    f"وصلنا إلى موعد نهاية {s_name} (\u202A{format_12h(s_end)}\u202C). تم إلغاء حظر التطبيقات بنجاح!",
+                                    QSystemTrayIcon.Information,
+                                    7000
+                                )
+                            break
 
             m_end = self.config.get("manual_session_end_time", "")
-            if m_end and m_end == now_str:
-                if getattr(self, "last_ended_schedule_key", "") != f"m_end_{now_str}":
-                    self.last_ended_schedule_key = f"m_end_{now_str}"
+            if m_end and (m_end == now_str or m_end < now_str):
+                if getattr(self, "last_ended_schedule_key", "") != f"m_end_{today_date_str}_{now_str}":
+                    self.last_ended_schedule_key = f"m_end_{today_date_str}_{now_str}"
                     self.config["manual_session_is_strict"] = False
                     self.finish_learning_session()
+                    if self.audio_mgr:
+                        self.audio_mgr.play_success_sound()
                     if hasattr(self, "tray_icon") and self.tray_icon:
                         self.tray_icon.showMessage(
                             "🎉 انتهت جلسة التعلم",
@@ -3704,24 +3743,31 @@ class MainWindow(QMainWindow):
 
         if self.config.get("water_enabled", True):
             self.water_timer_counter += 1
+            self.config["water_timer_counter"] = self.water_timer_counter
             if self.water_timer_counter >= self.config.get("water_interval_min", 40):
                 self.water_timer_counter = 0
-                if not self._water_overlay_open:
+                self.config["water_timer_counter"] = 0
+                if not getattr(self, "_water_overlay_open", False):
                     self.test_water_overlay()
 
         if self.config.get("pushups_enabled", True):
             self.pushups_timer_counter += 1
+            self.config["pushups_timer_counter"] = self.pushups_timer_counter
             if self.pushups_timer_counter >= self.config.get("pushups_interval_min", 120):
                 self.pushups_timer_counter = 0
-                if not self._pushups_overlay_open:
+                self.config["pushups_timer_counter"] = 0
+                if not getattr(self, "_pushups_overlay_open", False):
                     self.test_pushups_overlay()
 
         if self.config.get("eye_rest_enabled", True):
             self.eye_rest_counter += 1
+            self.config["eye_rest_counter"] = self.eye_rest_counter
             if self.eye_rest_counter >= self.config.get("eye_rest_interval_min", 20):
                 self.eye_rest_counter = 0
+                self.config["eye_rest_counter"] = 0
                 if not getattr(self, "_eye_rest_overlay_open", False):
                     self.test_eye_rest_overlay()
+        self.cfg_mgr.save_config()
 
         self.update_dashboard_timers()
 
