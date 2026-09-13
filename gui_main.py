@@ -2515,6 +2515,33 @@ class MainWindow(QMainWindow):
         start_str = f"{h_start:02d}:{m_start:02d}"
         end_str = f"{h_end:02d}:{m_end:02d}"
 
+        # 🛑 التحقق من تساوي وقت البداية والنهاية
+        if start_str == end_str:
+            QMessageBox.warning(
+                self,
+                "تنبيه الموعد",
+                "⚠️ وقت البداية ووقت النهاية متطابقان!\nيرجى تحديد وقت بداية يختلف عن وقت النهاية."
+            )
+            return
+
+        # 🛑 التحقق من انعكاس البداية والنهاية (مثلاً اختيار 5 م كبداية و 3 م كنهاية)
+        start_mins = h_start * 60 + m_start
+        end_mins = h_end * 60 + m_end
+        if start_mins > end_mins:
+            duration_overnight = (24 * 60 - start_mins) + end_mins
+            if duration_overnight > 12 * 60:
+                # إذا كانت المدة أكثر من 12 ساعة، فالمستخدم على الأرجح عكس الأوقات بالخطأ (مثلاً أراد من 3 إلى 5 وعكسها)
+                ans = QMessageBox.question(
+                    self,
+                    "تصحيح ترتيب الأوقات",
+                    f"لقد اخترت وقت البداية (\u202A{format_12h(start_str)}\u202C) ووقت النهاية (\u202A{format_12h(end_str)}\u202C).\n\n"
+                    f"هل تقصد الجلسة من (\u202A{format_12h(end_str)}\u202C) إلى (\u202A{format_12h(start_str)}\u202C)؟",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes
+                )
+                if ans == QMessageBox.Yes:
+                    start_str, end_str = end_str, start_str
+
         st_text = self.cmb_sched_type.currentText()
         if "صارم" in st_text:
             st_type = "strict"
@@ -3668,23 +3695,46 @@ class MainWindow(QMainWindow):
         if self.config.get("manual_session_active", False) or self.app_blocker.is_active:
             for sched in self.config.get("learning_schedules", []):
                 if sched.get("active", True):
+                    s_start = sched.get("start", "")
                     s_end = sched.get("end", "")
                     s_name = sched.get("name", "")
-                    if s_end and (now_str == s_end or (s_end < now_str and not self._is_time_in_range(sched.get("start", ""), s_end, now_str))):
+                    if s_end and (now_str == s_end or (s_end < now_str and not self._is_time_in_range(s_start, s_end, now_str))):
                         sched_end_key = f"end_{s_name}_{today_date_str}_{s_end}"
                         if getattr(self, "last_ended_schedule_key", "") != sched_end_key:
                             self.last_ended_schedule_key = sched_end_key
-                            self.config["manual_session_is_strict"] = False
-                            self.finish_learning_session()
-                            if self.audio_mgr:
-                                self.audio_mgr.play_success_sound()
-                            if hasattr(self, "tray_icon") and self.tray_icon:
-                                self.tray_icon.showMessage(
-                                    "🎉 انتهت جلسة التعلم",
-                                    f"وصلنا إلى موعد نهاية {s_name} (\u202A{format_12h(s_end)}\u202C). تم إلغاء حظر التطبيقات بنجاح!",
-                                    QSystemTrayIcon.Information,
-                                    7000
+
+                            # 🛑 فحص ما إذا كان هناك موعد آخر نشط حالياً أو يبدأ الآن (للمواعيد المتداخلة أو المتتالية)
+                            other_active_schedules = [
+                                osch for osch in self.config.get("learning_schedules", [])
+                                if osch.get("active", True) and osch != sched and (
+                                    osch.get("start") == now_str or self._is_time_in_range(osch.get("start", ""), osch.get("end", ""), now_str)
                                 )
+                            ]
+
+                            if other_active_schedules:
+                                next_sched = other_active_schedules[0]
+                                next_name = next_sched.get("name", "الجلسة التالية")
+                                if hasattr(self, "tray_icon") and self.tray_icon:
+                                    self.tray_icon.showMessage(
+                                        "🔔 انتقال لموعد جديد",
+                                        f"انتهت فترة {s_name}، وتستمر الجلسة الحالية لتغطية {next_name}! 💪",
+                                        QSystemTrayIcon.Information,
+                                        7000
+                                    )
+                                if self.audio_mgr:
+                                    self.audio_mgr.play_success_sound()
+                            else:
+                                self.config["manual_session_is_strict"] = False
+                                self.finish_learning_session()
+                                if self.audio_mgr:
+                                    self.audio_mgr.play_success_sound()
+                                if hasattr(self, "tray_icon") and self.tray_icon:
+                                    self.tray_icon.showMessage(
+                                        "🎉 انتهت جلسة التعلم",
+                                        f"وصلنا إلى موعد نهاية {s_name} (\u202A{format_12h(s_end)}\u202C). تم إلغاء حظر التطبيقات بنجاح!",
+                                        QSystemTrayIcon.Information,
+                                        7000
+                                    )
                             break
 
             m_end = self.config.get("manual_session_end_time", "")
