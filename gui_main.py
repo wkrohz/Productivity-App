@@ -15,6 +15,7 @@ import sys
 import os
 import datetime
 import random
+import ctypes
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QListWidget, QListWidgetItem, QLineEdit, QComboBox, QCheckBox,
@@ -3090,9 +3091,35 @@ class MainWindow(QMainWindow):
         self.cfg_mgr.save_config()
         self.update_dashboard_timers()
 
+    def is_user_idle(self, idle_seconds=300):
+        """Returns True if the user has been inactive (no mouse/keyboard input) for > idle_seconds."""
+        if not sys.platform.startswith("win"):
+            return False
+        try:
+            class LASTINPUTINFO(ctypes.Structure):
+                _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+            lii = LASTINPUTINFO()
+            lii.cbSize = ctypes.sizeof(LASTINPUTINFO)
+            if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):
+                millis = ctypes.windll.kernel32.GetTickCount() - lii.dwTime
+                return (millis / 1000.0) >= idle_seconds
+        except Exception:
+            pass
+        return False
+
+    def is_any_overlay_open(self):
+        """Returns True if any full-screen overlay window is currently open."""
+        return (
+            getattr(self, "_water_overlay_open", False) or
+            getattr(self, "_pushups_overlay_open", False) or
+            getattr(self, "_eye_rest_overlay_open", False) or
+            getattr(self, "_prayer_overlay_open", False) or
+            getattr(self, "_schedule_overlay_open", False)
+        )
+
     def test_water_overlay(self):
-        """تفتح شاشة الماء — لكن فقط إذا ما كانت مفتوحة بالفعل."""
-        if self._water_overlay_open:
+        """تفتح شاشة الماء — فقط إذا لم تكن أي شاشة تذكير أخرى مفتوحة."""
+        if self.is_any_overlay_open():
             return
         self._water_overlay_open = True
         self.water_overlay = WaterOverlayWindow(
@@ -3101,8 +3128,8 @@ class MainWindow(QMainWindow):
         )
 
     def test_pushups_overlay(self):
-        """تفتح شاشة التمارين بالتدوير بين مختلف التمارين الرياضية."""
-        if self._pushups_overlay_open:
+        """تفتح شاشة التمارين — فقط إذا لم تكن أي شاشة تذكير أخرى مفتوحة."""
+        if self.is_any_overlay_open():
             return
         self._pushups_overlay_open = True
         
@@ -3791,14 +3818,23 @@ class MainWindow(QMainWindow):
             }
             self.cfg_mgr.save_config()
 
+        # 🛑 إذا كان المستخدم بعيداً عن الجهاز (خامل أكثر من 5 دقائق)، أوقف تزايد المؤقتات وإطلاق التنبيهات
+        if self.is_user_idle(300):
+            self.update_dashboard_timers()
+            return
+
+        # 🛑 إذا كانت هناك أي شاشة تذكير مفتوحة بالفعل، لا تُفتح شاشات تذكير أخرى فوقها
+        if self.is_any_overlay_open():
+            self.update_dashboard_timers()
+            return
+
         if self.config.get("water_enabled", True):
             self.water_timer_counter += 1
             self.config["water_timer_counter"] = self.water_timer_counter
             if self.water_timer_counter >= self.config.get("water_interval_min", 40):
                 self.water_timer_counter = 0
                 self.config["water_timer_counter"] = 0
-                if not getattr(self, "_water_overlay_open", False):
-                    self.test_water_overlay()
+                self.test_water_overlay()
 
         if self.config.get("pushups_enabled", True):
             self.pushups_timer_counter += 1
@@ -3806,8 +3842,7 @@ class MainWindow(QMainWindow):
             if self.pushups_timer_counter >= self.config.get("pushups_interval_min", 120):
                 self.pushups_timer_counter = 0
                 self.config["pushups_timer_counter"] = 0
-                if not getattr(self, "_pushups_overlay_open", False):
-                    self.test_pushups_overlay()
+                self.test_pushups_overlay()
 
         if self.config.get("eye_rest_enabled", True):
             self.eye_rest_counter += 1
@@ -3815,8 +3850,7 @@ class MainWindow(QMainWindow):
             if self.eye_rest_counter >= self.config.get("eye_rest_interval_min", 20):
                 self.eye_rest_counter = 0
                 self.config["eye_rest_counter"] = 0
-                if not getattr(self, "_eye_rest_overlay_open", False):
-                    self.test_eye_rest_overlay()
+                self.test_eye_rest_overlay()
         self.cfg_mgr.save_config()
 
         self.update_dashboard_timers()
@@ -4039,7 +4073,7 @@ class MainWindow(QMainWindow):
             """)
 
     def test_eye_rest_overlay(self):
-        if not getattr(self, "_eye_rest_overlay_open", False):
+        if not self.is_any_overlay_open():
             self._eye_rest_overlay_open = True
             self.eye_rest_overlay = EyeRestOverlayWindow(
                 audio_mgr=self.audio_mgr,
