@@ -31,6 +31,7 @@ from asset_helper import get_asset_path, get_tinted_pixmap, get_tinted_icon
 from overlays import (WaterOverlayWindow, PushupsOverlayWindow, StartScheduleOverlayWindow,
                        ExerciseOverlayWindow, PrayerOverlayWindow, EyeRestOverlayWindow,
                        AppointmentReminderOverlay, EXERCISES_LIST)
+from badges_data import ALL_BADGES, get_badge_progress_info
 
 MOTIVATIONAL_STUDY_QUOTES = [
     "💡 استمر! كل دقيقة تدرسها الآن تقربك من هدفك العظيم.",
@@ -92,47 +93,7 @@ RANKS = [
     (100000,  "قدوة اسطورية ⚡",   "#EF4444", "قمة المجد! أسطورة خالدة في الإنتاجية 👑⚡"),
 ]
 
-ALL_BADGES = [
-    # 💧 قسم الماء (6 أوسمة)
-    {"id": "b_water_1", "cat": "water", "title": "💧 قطرة البداية",        "desc": "شرب 3 أكواب ماء في يوم واحد",     "pts": 20,  "water_min": 3},
-    {"id": "b_water_2", "cat": "water", "title": "🚿 المنتعش",              "desc": "شرب 6 أكواب في يوم واحد",         "pts": 40,  "water_min": 6},
-    {"id": "b_water_3", "cat": "water", "title": "🌊 نهر الانتعاش",         "desc": "شرب 20 كوب إجمالاً",              "pts": 80,  "water_total": 20},
-    {"id": "b_water_4", "cat": "water", "title": "🐳 محيط الهيدرات",        "desc": "شرب 50 كوب إجمالاً",              "pts": 150, "water_total": 50},
-    {"id": "b_water_5", "cat": "water", "title": "🌍 بحر الصحة",            "desc": "شرب 100 كوب إجمالاً",             "pts": 280, "water_total": 100},
-    {"id": "b_water_6", "cat": "water", "title": "🔱 سيد المياه الأبدي",    "desc": "شرب 250 كوب إجمالاً",             "pts": 500, "water_total": 250},
-
-    # 🏋️ قسم التمارين (6 أوسمة)
-    {"id": "b_pushups_1", "cat": "pushups", "title": "🏋️ الدفعة الأولى",   "desc": "إنجاز 10 ضغطات في جلسة واحدة",   "pts": 25,  "pushups_min": 10},
-    {"id": "b_pushups_2", "cat": "pushups", "title": "💪 عضلات من حديد",    "desc": "إنجاز 30 ضغطة في جلسة واحدة",     "pts": 50,  "pushups_min": 30},
-    {"id": "b_pushups_3", "cat": "pushups", "title": "🥊 المقاتل الصلب",    "desc": "إنجاز 100 ضغطة إجمالاً",           "pts": 120, "pushups_total": 100},
-    {"id": "b_pushups_4", "cat": "pushups", "title": "🦾 أسد القوة",        "desc": "إنجاز 300 ضغطة إجمالاً",           "pts": 250, "pushups_total": 300},
-    {"id": "b_pushups_5", "cat": "pushups", "title": "🏆 وحش اللياقة",      "desc": "إنجاز 750 ضغطة إجمالاً",           "pts": 450, "pushups_total": 750},
-    {"id": "b_pushups_6", "cat": "pushups", "title": "⚡ إله التمارين",      "desc": "إنجاز 1500 ضغطة إجمالاً",          "pts": 800, "pushups_total": 1500},
-
-    # 🎓 قسم التعلم والتركيز (7 أوسمة)
-    {"id": "b_learn_1", "cat": "learn", "title": "🎓 شرارة التركيز",        "desc": "30 دقيقة تعلم في يوم واحد",       "pts": 30,  "learn_day": 30},
-    {"id": "b_learn_2", "cat": "learn", "title": "📖 الطالب المجتهد",       "desc": "60 دقيقة تعلم في يوم واحد",       "pts": 60,  "learn_day": 60},
-    {"id": "b_learn_3", "cat": "learn", "title": "🧠 عقل من نار",           "desc": "120 دقيقة تعلم في يوم واحد",      "pts": 120, "learn_day": 120},
-    {"id": "b_learn_4", "cat": "learn", "title": "🚀 المتعلم الشغوف",       "desc": "300 دقيقة تعلم إجمالاً (5 ساعات)","pts": 200, "learn_total": 300},
-    {"id": "b_learn_5", "cat": "learn", "title": "🌌 عقلية العلماء",        "desc": "1200 دقيقة (20 ساعة) إجمالاً",    "pts": 450, "learn_total": 1200},
-    {"id": "b_learn_6", "cat": "learn", "title": "👁️ سيد المعرفة",          "desc": "3000 دقيقة (50 ساعة) إجمالاً",    "pts": 900, "learn_total": 3000},
-    {"id": "b_learn_7", "cat": "learn", "title": "🌟 أسطورة التعلم",        "desc": "6000 دقيقة (100 ساعة) إجمالاً",   "pts": 1500,"learn_total": 6000},
-
-    # 📋 قسم المهام (6 أوسمة)
-    {"id": "b_tasks_1", "cat": "tasks", "title": "📝 خطوة الألف ميل",       "desc": "إكمال أول مهمة يومية",            "pts": 20,  "tasks_done": 1},
-    {"id": "b_tasks_2", "cat": "tasks", "title": "✅ منجز اليوم",            "desc": "إكمال 5 مهام في يوم واحد",         "pts": 50,  "tasks_done": 5},
-    {"id": "b_tasks_3", "cat": "tasks", "title": "📋 قاهر المهام",           "desc": "إكمال 10 مهام إجمالاً",            "pts": 100, "tasks_total": 10},
-    {"id": "b_tasks_4", "cat": "tasks", "title": "🎯 قناص الأهداف",          "desc": "إكمال 30 مهمة إجمالاً",            "pts": 250, "tasks_total": 30},
-    {"id": "b_tasks_5", "cat": "tasks", "title": "🔥 آلة الإنجاز",           "desc": "إكمال 75 مهمة إجمالاً",            "pts": 450, "tasks_total": 75},
-    {"id": "b_tasks_6", "cat": "tasks", "title": "👑 ملك الإنجاز الأبدي",   "desc": "إكمال 200 مهمة إجمالاً",           "pts": 800, "tasks_total": 200},
-
-    # ⚡ قسم النقاط والرانك (5 أوسمة خاصة)
-    {"id": "b_score_1",  "cat": "score", "title": "🌱 أول خطوة",            "desc": "جمع 300 نقطة",                      "pts": 0,   "score_min": 300},
-    {"id": "b_score_2",  "cat": "score", "title": "🔥 ألفان نقطة",          "desc": "جمع 2000 نقطة إجمالاً",            "pts": 0,   "score_min": 2000},
-    {"id": "b_score_3",  "cat": "score", "title": "💎 نادي العشرة آلاف",    "desc": "جمع 10000 نقطة إجمالاً",           "pts": 0,   "score_min": 10000},
-    {"id": "b_score_4",  "cat": "score", "title": "👑 سيد النقاط",          "desc": "جمع 50000 نقطة إجمالاً",           "pts": 0,   "score_min": 50000},
-    {"id": "b_score_5",  "cat": "score", "title": "🌌 اسطورة الأوسمة",     "desc": "جمع 100000 نقطة إجمالاً (القمة)",  "pts": 0,   "score_min": 100000},
-]
+# (ALL_BADGES imported from badges_data.py)
 
 class AddPortfolioFolderDialog(QDialog):
     def __init__(self, parent=None):
@@ -1891,18 +1852,22 @@ class MainWindow(QMainWindow):
         # Badge filter buttons
         badge_filter_row = QHBoxLayout()
         badge_filter_row.setSpacing(8)
-        self.btn_badge_filter_all = QPushButton("الكل")
+        self.btn_badge_filter_all = QPushButton("الكل 🌟")
+        self.btn_badge_filter_learn = QPushButton("🎓 التعلم")
+        self.btn_badge_filter_streak = QPushButton("🔥 الستريك")
         self.btn_badge_filter_water = QPushButton("💧 الماء")
         self.btn_badge_filter_pushups = QPushButton("🏋️ التمارين")
-        self.btn_badge_filter_learn = QPushButton("🎓 التعلم")
+        self.btn_badge_filter_prayer = QPushButton("📿 العبادة")
         self.btn_badge_filter_tasks = QPushButton("📋 المهام")
         self.btn_badge_filter_score = QPushButton("⚡ النقاط")
 
         badge_filters = [
             (self.btn_badge_filter_all, "all"),
+            (self.btn_badge_filter_learn, "learn"),
+            (self.btn_badge_filter_streak, "streak"),
             (self.btn_badge_filter_water, "water"),
             (self.btn_badge_filter_pushups, "pushups"),
-            (self.btn_badge_filter_learn, "learn"),
+            (self.btn_badge_filter_prayer, "prayer"),
             (self.btn_badge_filter_tasks, "tasks"),
             (self.btn_badge_filter_score, "score"),
         ]
@@ -3190,20 +3155,26 @@ class MainWindow(QMainWindow):
         self.config["total_learn_minutes"]  = max(l_total, l_min)
         self.config["total_tasks_done"]     = max(t_total, t_done)
 
+        s_data = self.config.get("streak_data", {})
+        streak_days = s_data.get("current_streak", 0) if s_data.get("is_alive", True) else 0
+        prayer_total = self.config.get("total_prayers_done", 0)
+
         for badge in ALL_BADGES:
             bid = badge["id"]
             if bid in unlocked:
                 continue
             earned = False
-            if "water_min"     in badge and w_cnt  >= badge["water_min"]:    earned = True
-            if "water_total"   in badge and w_total >= badge["water_total"]:  earned = True
-            if "pushups_min"   in badge and p_cnt  >= badge["pushups_min"]:   earned = True
-            if "pushups_total" in badge and p_total >= badge["pushups_total"]: earned = True
-            if "learn_day"     in badge and l_min  >= badge["learn_day"]:     earned = True
-            if "learn_total"   in badge and l_total >= badge["learn_total"]:  earned = True
-            if "tasks_done"    in badge and t_done >= badge["tasks_done"]:    earned = True
-            if "tasks_total"   in badge and t_total >= badge["tasks_total"]:  earned = True
-            if "score_min"     in badge and curr   >= badge["score_min"]:     earned = True
+            if "water_min"     in badge and w_cnt       >= badge["water_min"]:     earned = True
+            if "water_total"   in badge and w_total     >= badge["water_total"]:   earned = True
+            if "pushups_min"   in badge and p_cnt       >= badge["pushups_min"]:    earned = True
+            if "pushups_total" in badge and p_total     >= badge["pushups_total"]:  earned = True
+            if "learn_day"     in badge and l_min       >= badge["learn_day"]:      earned = True
+            if "learn_total"   in badge and l_total     >= badge["learn_total"]:   earned = True
+            if "tasks_done"    in badge and t_done      >= badge["tasks_done"]:     earned = True
+            if "tasks_total"   in badge and t_total     >= badge["tasks_total"]:   earned = True
+            if "streak_min"    in badge and streak_days >= badge["streak_min"]:    earned = True
+            if "prayer_total"  in badge and prayer_total>= badge["prayer_total"]:  earned = True
+            if "score_min"     in badge and curr       >= badge["score_min"]:      earned = True
             if earned:
                 unlocked.append(bid)
                 bonus = badge.get("pts", 0)
@@ -3402,12 +3373,40 @@ class MainWindow(QMainWindow):
             unlocked = self.config.get("unlocked_badges", [])
             cat_filter = getattr(self, 'current_badge_filter', 'all')
 
+            daily = self.config.get("daily_stats", {})
+            w_cnt = daily.get("water_count", 0)
+            p_cnt = daily.get("pushups_count", 0)
+            l_min = daily.get("learning_minutes", 0)
+            t_done = sum(1 for t in self.config.get("daily_tasks", []) if t.get("completed", False))
+
+            w_total = self.config.get("total_water_count", w_cnt)
+            p_total = self.config.get("total_pushups_count", p_cnt)
+            l_total = self.config.get("total_learn_minutes", l_min)
+            t_total = self.config.get("total_tasks_done", t_done)
+            prayer_total = self.config.get("total_prayers_done", 0)
+
+            s_data = self.config.get("streak_data", {})
+            streak_days = s_data.get("current_streak", 0) if s_data.get("is_alive", True) else 0
+            score = self.config.get("user_score", 0)
+
+            stats_dict = {
+                "w_cnt": w_cnt, "w_total": w_total,
+                "p_cnt": p_cnt, "p_total": p_total,
+                "l_min": l_min, "l_total": l_total,
+                "t_done": t_done, "t_total": t_total,
+                "prayer_total": prayer_total,
+                "streak_days": streak_days,
+                "score": score
+            }
+
             # Update filter button active states
             badge_filter_map = {
                 "btn_badge_filter_all":     "all",
+                "btn_badge_filter_learn":   "learn",
+                "btn_badge_filter_streak":  "streak",
                 "btn_badge_filter_water":   "water",
                 "btn_badge_filter_pushups": "pushups",
-                "btn_badge_filter_learn":   "learn",
+                "btn_badge_filter_prayer":  "prayer",
                 "btn_badge_filter_tasks":   "tasks",
                 "btn_badge_filter_score":   "score",
             }
@@ -3424,32 +3423,36 @@ class MainWindow(QMainWindow):
 
             unlocked_count = sum(1 for b in ALL_BADGES if b["id"] in unlocked)
             if hasattr(self, 'lbl_badges_count'):
-                self.lbl_badges_count.setText(f"✅ {unlocked_count} / {len(ALL_BADGES)} وسام")
+                self.lbl_badges_count.setText(f"✅ {unlocked_count} / {len(ALL_BADGES)} وسام مكتسب")
 
             CAT_COLORS = {
+                "learn":   ("#A78BFA", "#1D1435"),
+                "streak":  ("#F97316", "#2B1305"),
                 "water":   ("#38BDF8", "#0C2D3E"),
                 "pushups": ("#FB923C", "#2E1A0E"),
-                "learn":   ("#A78BFA", "#1D1435"),
+                "prayer":  ("#10B981", "#05291C"),
                 "tasks":   ("#34D399", "#0E2E22"),
                 "score":   ("#F59E0B", "#2E2008"),
             }
 
-            COLS = 4
+            COLS = 3
             for idx, badge in enumerate(filtered_badges):
                 bid = badge["id"]
                 is_unlocked = bid in unlocked
                 bcat = badge.get("cat", "score")
                 accent, bg_dark = CAT_COLORS.get(bcat, ("#94A3B8", "#111827"))
 
+                curr_val, target_val, unit_str, pct, rem = get_badge_progress_info(badge, stats_dict)
+
                 b_card = QFrame()
-                b_card.setMinimumHeight(110)
+                b_card.setMinimumHeight(135)
                 if is_unlocked:
                     b_card.setStyleSheet(f"""
                         QFrame {{
                             background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
                                 stop:0 {bg_dark}, stop:1 #111827);
-                            border: 1px solid {accent};
-                            border-radius: 14px;
+                            border: 1.5px solid {accent};
+                            border-radius: 16px;
                         }}
                     """)
                 else:
@@ -3457,35 +3460,63 @@ class MainWindow(QMainWindow):
                         QFrame {
                             background-color: #0B0F19;
                             border: 1px solid #1F293D;
-                            border-radius: 14px;
+                            border-radius: 16px;
                         }
                     """)
 
                 b_layout = QVBoxLayout(b_card)
-                b_layout.setContentsMargins(12, 10, 12, 10)
-                b_layout.setSpacing(4)
+                b_layout.setContentsMargins(14, 12, 14, 12)
+                b_layout.setSpacing(6)
 
-                lbl_t = QLabel(badge["title"])
+                progress_ratio_str = f"({curr_val}/{target_val})" if target_val > 0 else ""
+                lbl_t = QLabel(f"{badge['title']}  {progress_ratio_str}")
                 lbl_t.setWordWrap(True)
-                lbl_t.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {accent if is_unlocked else '#475569'};")
+                lbl_t.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {accent if is_unlocked else '#94A3B8'};")
 
                 lbl_d = QLabel(badge["desc"])
                 lbl_d.setWordWrap(True)
                 lbl_d.setStyleSheet("font-size: 11px; color: #64748B;")
 
+                p_bar = QProgressBar()
+                p_bar.setRange(0, 100)
+                p_bar.setValue(100 if is_unlocked else pct)
+                p_bar.setFixedHeight(6)
+                p_bar.setTextVisible(False)
+                if is_unlocked:
+                    p_bar.setStyleSheet(f"""
+                        QProgressBar {{ background: rgba(255,255,255,0.05); border: none; border-radius: 3px; }}
+                        QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
+                    """)
+                else:
+                    p_bar.setStyleSheet(f"""
+                        QProgressBar {{ background: rgba(255,255,255,0.05); border: none; border-radius: 3px; }}
+                        QProgressBar::chunk {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0284C7, stop:1 {accent}); border-radius: 3px; }}
+                    """)
+
+                bot_row = QHBoxLayout()
+                bot_row.setSpacing(6)
+
                 pts_text = f"+{badge['pts']} نقطة" if badge.get('pts', 0) > 0 else ""
                 lbl_pts = QLabel(pts_text)
-                lbl_pts.setStyleSheet(f"font-size: 11px; color: {'#F59E0B' if is_unlocked else '#334155'}; font-weight: bold;")
+                lbl_pts.setStyleSheet(f"font-size: 11px; color: {'#F59E0B' if is_unlocked else '#475569'}; font-weight: bold;")
 
-                lbl_st = QLabel("✅ تم الفتح" if is_unlocked else "🔒 مغلق")
-                lbl_st.setAlignment(Qt.AlignRight)
-                lbl_st.setStyleSheet(f"font-size: 12px; font-weight: bold; color: {'#10B981' if is_unlocked else '#334155'};")
+                if is_unlocked:
+                    prog_text = f"✅ مكتمل ({curr_val}/{target_val} {unit_str})"
+                    lbl_st = QLabel(prog_text)
+                    lbl_st.setStyleSheet("font-size: 11px; font-weight: bold; color: #10B981;")
+                else:
+                    prog_text = f"📊 {curr_val}/{target_val} {unit_str} (متبقي {rem})"
+                    lbl_st = QLabel(prog_text)
+                    lbl_st.setStyleSheet("font-size: 11px; color: #94A3B8;")
+
+                bot_row.addWidget(lbl_st)
+                bot_row.addStretch()
+                bot_row.addWidget(lbl_pts)
 
                 b_layout.addWidget(lbl_t)
                 b_layout.addWidget(lbl_d)
-                b_layout.addWidget(lbl_pts)
-                b_layout.addStretch()
-                b_layout.addWidget(lbl_st)
+                b_layout.addWidget(p_bar)
+                b_layout.addLayout(bot_row)
 
                 row = idx // COLS
                 col_i = idx % COLS
